@@ -589,8 +589,11 @@ export default function CityMapScreen({ navigation }) {
   // Düğüm açık mı (oynanabilir mi)? — adım adım kilit.
   const isOpen = (node) => {
     if (node.dg) {
-      // Paket şehri: paket alınmış olmalı + paket içinde sıra gelmiş olmalı.
+      // Paket şehri: paket alınmış OLSA BİLE, ondan önceki aşama bitmeden açılmaz.
       if (!ownedPacks.includes(node.packId)) return false;
+      if (node.dg === 1 && !d1Buyable) return false;   // önce başlangıç şehirleri bitmeli
+      if (node.dg === 2 && !d2Buyable) return false;   // önce ara ücretsiz şehirler (ve Asya+Afrika) bitmeli
+      // + paket içinde sıra gelmiş olmalı.
       const cities = PACKS.find((p) => p.id === node.packId)?.cities || [];
       const idx = cities.indexOf(node.city.id);
       if (idx <= 0) return true;                       // paketin ilk şehri
@@ -769,16 +772,17 @@ export default function CityMapScreen({ navigation }) {
       }).start(() => {
         setFlying(false);
         if (pack) {
-          if (ownedPacks.includes(node.packId)) {
-            // Paket alınmış ama bu şehrin sırası gelmemiş.
-            setToast('Önce paketin önceki şehrini bitir');
-            setTimeout(() => setToast(null), 2200);
-          } else if (node.dg === 1 && !d1Buyable) {
+          if (node.dg === 1 && !d1Buyable) {
+            // Kapıya ulaşılmamış (başlangıç şehirleri bitmemiş) — alınmış olsa bile kapalı.
             setToast('Önce başlangıç şehirlerini bitir');
             setTimeout(() => setToast(null), 2400);
           } else if (node.dg === 2 && !d2Buyable) {
             setToast('Önce aradaki ücretsiz şehirleri bitir');
             setTimeout(() => setToast(null), 2400);
+          } else if (ownedPacks.includes(node.packId)) {
+            // Kapı açık + paket alınmış ama bu şehrin sırası gelmemiş.
+            setToast('Önce paketin önceki şehrini bitir');
+            setTimeout(() => setToast(null), 2200);
           } else {
             // Kapıya ulaşıldı → satın alma sorulur.
             Alert.alert(
