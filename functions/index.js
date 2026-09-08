@@ -1,11 +1,10 @@
 // functions/index.js
-// CrossPix — sunucu tarafı ekonomi (tam güvenli, otoriter kaynak).
-// TÜM altın/joker/paket/tema/reklamsız değişiklikleri BURADA olur.
-// Firestore güvenlik kuralları istemcinin users/{uid} belgesine YAZMASINI ENGELLER;
-// bütün mutasyonlar bu Cloud Functions üzerinden (Admin SDK) yapılır. Böylece
-// satın alınan altın/paket taklit edilemez.
-const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
+// CrossPix — (İSTEĞE BAĞLI) sunucu-otoriter altın ekonomisi. ŞU AN DEPLOY EDİLMEZ:
+// oyun Blaze'siz (Spark) çalışıyor, gerçek-para satın almalar istemcide
+// (react-native-iap) işleniyor. Blaze'e geçilirse bu onCall fonksiyonları, istemci
+// yerine sunucuda altın/joker/paket/tema mutasyonu için kullanılabilir (Firestore
+// kuralı write:false yapılıp). RevenueCat / reklamsız / kasif teması KALDIRILDI.
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
@@ -25,9 +24,9 @@ const ENDLESS_BASE_REWARD = 12;
 const ENDLESS_LEVEL_STEP = 2;
 const ENDLESS_LEVEL_CAP = 40;
 
-// Temalar (altınla alınır). classic ücretsiz; kasif SATIN ALINAMAZ (yalnız ödül).
+// Temalar (altınla alınır). classic ücretsiz.
 const THEME_PRICES = { spring: 150, sunset: 300, autumn: 450, winter: 600, night: 750 };
-const ALL_THEME_IDS = ['classic', 'spring', 'sunset', 'autumn', 'winter', 'night', 'kasif'];
+const ALL_THEME_IDS = ['classic', 'spring', 'sunset', 'autumn', 'winter', 'night'];
 
 // İçerik paketleri (altınla alınır).
 const PACK_PRICES = { asya: 500, amerika: 500, afrika: 500, avrupa: 500, sonsuz: 2000 };
@@ -38,7 +37,7 @@ const MILESTONES = [
   { n: 10, reward: 400 },
   { n: 20, reward: 800 },
   { n: 30, reward: 1200 },
-  { n: 39, reward: 2000, themeId: 'kasif' },
+  { n: 39, reward: 2000 },
 ];
 
 // Hatıra sayımı için: geçerli şehir kimlikleri + şehir başına bölüm sayısı (hepsi 7).
@@ -51,17 +50,6 @@ const CITY_IDS = [
 ];
 const CITY_ID_SET = new Set(CITY_IDS);
 const PUZZLES_PER_CITY = 7;
-
-// Gerçek PARA ile alınan altın paketleri (RevenueCat ürün kimliği -> altın).
-const GOLD_PACKS = {
-  'com.sinemkarakurt.crosspix.gold500': 500,
-  'com.sinemkarakurt.crosspix.gold1000': 1000,
-  'com.sinemkarakurt.crosspix.gold2000': 2000,
-  'com.sinemkarakurt.crosspix.gold5000': 5000,
-};
-
-// RevenueCat webhook yetki başlığı (RevenueCat panelinde ayarladığın gizli değer).
-const REVENUECAT_AUTH = defineSecret('REVENUECAT_AUTH');
 
 const userRef = (uid) => db.collection('users').doc(uid);
 const todayStr = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -204,7 +192,7 @@ exports.buyTheme = onCall(async (req) => {
   const uid = requireAuth(req);
   const themeId = String((req.data && req.data.themeId) || '');
   const price = THEME_PRICES[themeId];
-  if (!price) throw new HttpsError('invalid-argument', 'Geçersiz tema.'); // kasif/classic satın alınamaz
+  if (!price) throw new HttpsError('invalid-argument', 'Geçersiz tema.'); // classic satın alınamaz
   const ref = await ensureUserDoc(uid, req.auth.token);
   return db.runTransaction(async (tx) => {
     const s = await tx.get(ref);
@@ -279,60 +267,4 @@ exports.claimMilestone = onCall(async (req) => {
     tx.update(ref, patch);
     return { ok: true, reward: milestone.reward, theme: gotTheme };
   });
-});
-
-// RevenueCat webhook → DOĞRULANMIŞ satın almada altın ver / reklamsızı aç.
-// RevenueCat panelinde: Integrations → Webhooks → URL = bu fonksiyonun URL'i,
-// Authorization header = REVENUECAT_AUTH gizli değeri.
-exports.revenueCatWebhook = onRequest({ secrets: [REVENUECAT_AUTH] }, async (req, res) => {
-  const expected = REVENUECAT_AUTH.value();
-  if (!expected || req.get('Authorization') !== expected) {
-    res.status(401).send('unauthorized');
-    return;
-  }
-  const event = req.body && req.body.event;
-  if (!event) { res.status(400).send('no event'); return; }
-
-  const CREDIT_TYPES = ['INITIAL_PURCHASE', 'NON_RENEWING_PURCHASE', 'RENEWAL', 'PRODUCT_CHANGE'];
-  const uid = event.app_user_id;         // Purchases.logIn(uid) sayesinde = Firebase uid
-  const productId = event.product_id;
-  const eventId = String(event.id || '');
-  if (!CREDIT_TYPES.includes(event.type) || !uid || !productId || !eventId) {
-    res.status(200).send('ignored');
-    return;
-  }
-
-  const coins = GOLD_PACKS[productId];
-  if (!coins) { res.status(200).send('unknown product'); return; }
-
-  const ref = userRef(uid);
-  const evtRef = db.collection('processedEvents').doc(eventId);
-  try {
-    await db.runTransaction(async (tx) => {
-      const evt = await tx.get(evtRef);
-      if (evt.exists) return; // idempotent — aynı olayı iki kez işleme
-      const s = await tx.get(ref);
-      if (s.exists) {
-        tx.update(ref, { coins: ((s.data().coins) || 0) + coins });
-      } else {
-        tx.set(ref, {
-          coins: STARTING_COINS + coins,
-          jokers: STARTING_JOKERS,
-          rewarded: {},
-          lastDaily: null,
-          ownedThemes: ['classic'],
-          equippedTheme: 'classic',
-          ownedPacks: [],
-          endlessLevel: 1,
-          claimedMilestones: [],
-          createdAt: FieldValue.serverTimestamp(),
-        });
-      }
-      tx.set(evtRef, { uid, productId, coins, at: FieldValue.serverTimestamp() });
-    });
-    res.status(200).send('ok');
-  } catch (e) {
-    console.error('webhook error', e);
-    res.status(500).send('error');
-  }
 });

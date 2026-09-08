@@ -42,15 +42,20 @@ export default function JournalScreen({ navigation }) {
   const [, force] = React.useReducer((x) => x + 1, 0);
   const [flash, setFlash] = React.useState(null);
 
-  // Odaklanınca: biriken kilometre taşı ödülünü sessizce ver (her seferinde bir tane).
+  // Odaklanınca: biriken TÜM kilometre taşı ödüllerini tek seferde ver (birden çok
+  // eşik aynı anda aşılmışsa hepsi alınır).
   useFocusEffect(React.useCallback(() => {
     force();
     const collected = CITIES.filter((c) => isCityComplete(c, rewarded)).length;
-    const due = SOUVENIR_MILESTONES.find((m) => collected >= m.n && !claimedMilestones.includes(m.n));
-    if (due) {
-      const res = claimMilestone(due.n, due.reward, collected, due.themeId);
-      if (res.ok) {
-        setFlash(`+${due.reward} altın`);
+    const due = SOUVENIR_MILESTONES.filter((m) => collected >= m.n && !claimedMilestones.includes(m.n));
+    if (due.length) {
+      let total = 0;
+      due.forEach((m) => {
+        const res = claimMilestone(m.n, m.reward, collected, m.themeId);
+        if (res.ok) total += res.reward;
+      });
+      if (total > 0) {
+        setFlash(`+${total} altın`);
         setTimeout(() => setFlash(null), 2400);
       }
     }
