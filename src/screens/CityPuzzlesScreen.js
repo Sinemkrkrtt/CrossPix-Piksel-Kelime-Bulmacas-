@@ -6,16 +6,27 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { PALETTE, FONT, GardenBackground, PixelArt, DETAILED_FLOWER, flowerPalette } from '../pixel/PixelKit';
 import { getCity } from '../data/cities';
+import { getPuzzle } from '../data/puzzles';
 import { useEconomy } from '../economy/EconomyContext';
 
 export default function CityPuzzlesScreen({ navigation, route }) {
   const city = getCity(route.params?.cityId) || getCity('istanbul');
-  const { rewarded } = useEconomy();
+  const { rewarded, puzzleProgress } = useEconomy();
   const [toast, setToast] = useState(null);
 
   const isSolved = (p) => !!rewarded[`${city.id}:${p.id}`];
   const total = city.puzzles.length;
   const solved = city.puzzles.filter(isSolved).length;
+
+  // Bir bölümün yüzde kaçı tamamlandı? Bitmişse %100; değilse çözülen ipucu / toplam ipucu.
+  const percentOf = (p) => {
+    if (isSolved(p)) return 100;
+    const puz = getPuzzle(city.id, p.id);
+    const totalClues = puz && puz.clues ? Object.keys(puz.clues).length : 0;
+    if (!totalClues) return 0;
+    const doneClues = (puzzleProgress[`${city.id}:${p.id}`] || []).length;
+    return Math.max(0, Math.min(100, Math.round((doneClues / totalClues) * 100)));
+  };
 
   const openPuzzle = (p) => {
     navigation.navigate(p.route || 'Puzzle', { cityId: city.id, puzzleId: p.id });
@@ -63,6 +74,7 @@ export default function CityPuzzlesScreen({ navigation, route }) {
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {city.puzzles.map((p, i) => {
           const done = isSolved(p);
+          const percent = percentOf(p);
           return (
             <Pressable
               key={p.id}
@@ -80,6 +92,12 @@ export default function CityPuzzlesScreen({ navigation, route }) {
               <View style={styles.cardBody}>
                 <Text style={styles.section}>BÖLÜM {i + 1}</Text>
                 <Text style={styles.puzzleTitle}>{p.title}</Text>
+                <View style={styles.miniRow}>
+                  <View style={styles.miniTrack}>
+                    <View style={[styles.miniFill, { width: `${percent}%` }, done && styles.miniFillDone]} />
+                  </View>
+                  <Text style={styles.miniPercent}>%{percent}</Text>
+                </View>
               </View>
 
               <View style={[styles.badge, done ? styles.badgeSolved : styles.badgeActive]}>
@@ -164,6 +182,13 @@ const styles = StyleSheet.create({
   section: { color: PALETTE.gold, fontFamily: FONT.semi, fontSize: 13, letterSpacing: 1 },
   puzzleTitle: { color: PALETTE.cream, fontFamily: FONT.bold, fontSize: 19, marginTop: 2 },
   dim: { color: PALETTE.muted },
+
+  // Bölüm ilerleme çubuğu (kart içi) — yüzde çubuğun hemen yanında
+  miniRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  miniTrack: { width: 150, height: 8, backgroundColor: PALETTE.outline, borderWidth: 1, borderColor: PALETTE.cardBorder, marginRight: 8 },
+  miniFill: { height: '100%', backgroundColor: PALETTE.gold },
+  miniFillDone: { backgroundColor: PALETTE.grassLight },
+  miniPercent: { color: PALETTE.cream, fontFamily: FONT.bold, fontSize: 12 },
 
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 2 },
   badgeActive: { backgroundColor: PALETTE.gold, borderColor: PALETTE.cream },

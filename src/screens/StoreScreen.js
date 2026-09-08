@@ -58,6 +58,7 @@ export default function StoreScreen({ navigation }) {
     if (!purchaseEvent) return;
     setBusy(null);
     if (purchaseEvent.ok) showFlash(`+${purchaseEvent.coins} altın eklendi!`);
+    else if (purchaseEvent.pending) showFlash('Onay bekleniyor…');
     else if (!purchaseEvent.cancelled) Alert.alert('Satın alma başarısız', purchaseEvent.error || 'Tekrar dene.');
     // iptal → sessiz geç
   }, [purchaseEvent]);
@@ -71,6 +72,8 @@ export default function StoreScreen({ navigation }) {
 
   const onBuyGold = async (pack) => {
     if (busy) return;
+    // Fiyatı Apple'dan yüklenmemiş paket (mağazada henüz hazır değil) → satın almayı deneme.
+    if (pack.available === false) { showFlash('Bu paket şu an mağazada hazır değil'); return; }
     setBusy(pack.id);
     const res = await requestGoldPurchase(pack.productId);
     if (res.mock) { setBusy(null); creditPurchase(pack.coins); showFlash(`+${pack.coins} altın eklendi! (test)`); return; }
@@ -141,14 +144,15 @@ export default function StoreScreen({ navigation }) {
           <View style={styles.grid}>
             {packs.map((p) => {
               const best = p.tag === 'EN İYİ' || p.tag === 'MEGA';
+              const unavailable = p.available === false;
               return (
-                <Pressable key={p.id} onPress={() => onBuyGold(p)} disabled={!!busy} style={({ pressed }) => [styles.packCard, best && styles.packBest, pressed && !busy && styles.pressed]}>
+                <Pressable key={p.id} onPress={() => onBuyGold(p)} disabled={!!busy || unavailable} style={({ pressed }) => [styles.packCard, best && styles.packBest, unavailable && styles.packOff, pressed && !busy && !unavailable && styles.pressed]}>
                   {p.tag ? <View style={[styles.ribbon, best && styles.ribbonBest]}><Text style={[styles.ribbonText, best && styles.ribbonTextBest]}>{p.tag}</Text></View> : <View style={styles.ribbonGap} />}
                   <PixelArt matrix={COIN} pixelSize={8} palette={COIN_PAL} />
                   <Text style={styles.packAmount}>{p.coins.toLocaleString('tr-TR')}</Text>
                   <Text style={styles.packLabel}>ALTIN</Text>
                   <View style={styles.packBuy}>
-                    {busy === p.id ? <ActivityIndicator size="small" color={PALETTE.outline} /> : <Text style={styles.packBuyText}>{p.priceString}</Text>}
+                    {busy === p.id ? <ActivityIndicator size="small" color={PALETTE.outline} /> : <Text style={styles.packBuyText}>{unavailable ? 'Yakında' : p.priceString}</Text>}
                   </View>
                 </Pressable>
               );
@@ -238,6 +242,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.24, shadowRadius: 0,
   },
   packBest: { borderColor: '#FFE87A', backgroundColor: '#2C3550' },
+  packOff: { opacity: 0.5 },
   ribbon: { backgroundColor: PALETTE.cardBorder, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 8 },
   ribbonBest: { backgroundColor: PALETTE.gold },
   ribbonText: { color: PALETTE.cream, fontFamily: FONT.bold, fontSize: 11, letterSpacing: 1 },

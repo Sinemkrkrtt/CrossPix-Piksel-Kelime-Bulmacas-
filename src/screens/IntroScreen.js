@@ -394,8 +394,8 @@ export default function IntroScreen({ navigation }) {
           </Animated.View>
 
           <View style={styles.titleWrap}>
-            <Text style={styles.logoTitle}>PIXEL</Text>
-            <Text style={styles.logoSubtitle}>DIORAMA</Text>
+            <Text style={styles.logoTitle}>CROSSPIX</Text>
+            <Text style={styles.logoSubtitle} numberOfLines={1} adjustsFontSizeToFit>PİKSEL KELİME BULMACASI</Text>
           </View>
 
           <View style={styles.progressFrame}>
@@ -530,10 +530,11 @@ const styles = StyleSheet.create({
   },
   logoSubtitle: {
     color: PALETTE.accent,
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: '700',
-    letterSpacing: 7,
-    marginTop: -4,
+    letterSpacing: 3,
+    marginTop: 2,
+    textAlign: 'center',
     textShadowColor: 'rgba(0,0,0,0.35)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,

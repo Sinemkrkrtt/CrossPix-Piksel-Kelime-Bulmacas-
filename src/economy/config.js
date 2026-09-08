@@ -15,12 +15,13 @@ export const JOKER_META = {
 export const JOKER_ORDER = ['cell', 'free', 'word'];
 
 // --- Yeni oyuncu başlangıcı ---
-export const STARTING_COINS = 0;
-export const STARTING_JOKERS = { cell: 1, word: 1, free: 1 };
+export const STARTING_COINS = 100;      // hoş geldin hediyesi: 100 altın
+export const STARTING_JOKERS = { cell: 1, word: 1, free: 1 }; // her jokerden 1'er hediye
 
 // --- Altın kazanma yolları (oyun-içi, ücretsiz) ---
-export const REWARD_FIRST_SOLVE = 10;   // her bölüm İLK kez çözülünce
-export const DAILY_BONUS = 40;          // günde bir kez giriş bonusu
+export const REWARD_FIRST_SOLVE = 0;    // tek bir bölüm çözünce altın YOK
+export const REWARD_CITY_COMPLETE = 20; // bir şehir %100 bitince +20 altın
+export const DAILY_BONUS = 40;          // günde bir kez giriş bonusu (şu an bağlı değil)
 
 // --- Sonsuz Mod (üreticiden, seviye çıktıkça zorluk artar) ---
 export const ENDLESS_BASE_REWARD = 12;  // temel altın

@@ -14,10 +14,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, onSnapshot, setDoc, increment, arrayUnion, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
 import { useAuth } from '../auth/AuthContext';
-import { getPack } from '../data/cities';
+import { getPack, getCity, isCityComplete } from '../data/cities';
 import { setPurchaseListeners, finishPurchase, PRODUCT_COINS } from './iap';
 import {
-  STARTING_COINS, STARTING_JOKERS, JOKER_META, REWARD_FIRST_SOLVE, DAILY_BONUS,
+  STARTING_COINS, STARTING_JOKERS, JOKER_META, REWARD_FIRST_SOLVE, REWARD_CITY_COMPLETE, DAILY_BONUS,
   THEMES, DEFAULT_THEME, getTheme,
   ENDLESS_BASE_REWARD, ENDLESS_LEVEL_STEP, ENDLESS_LEVEL_CAP,
 } from './config';
@@ -25,6 +25,17 @@ import {
 const EconomyContext = createContext(null);
 const cacheKey = (uid) => `pd.economy.${uid}`;
 const todayStr = () => new Date().toISOString().slice(0, 10);
+
+// Joker sayıları asla 0'ın altına düşmesin (eski/bozuk veriyi de temizler).
+const normJokers = (j) => {
+  const m = { ...STARTING_JOKERS, ...(j || {}) };
+  return {
+    cell: Math.max(0, Number(m.cell) || 0),
+    word: Math.max(0, Number(m.word) || 0),
+    free: Math.max(0, Number(m.free) || 0),
+  };
+};
+const hasNegativeJoker = (j) => !!j && ['cell', 'word', 'free'].some((k) => (Number(j[k]) || 0) < 0);
 
 export function EconomyProvider({ children }) {
   const { user } = useAuth();
@@ -38,6 +49,9 @@ export function EconomyProvider({ children }) {
   const [ownedPacks, setOwnedPacks] = useState([]);
   const [endlessLevel, setEndlessLevel] = useState(1);  // sonsuz mod güncel seviye
   const [claimedMilestones, setClaimedMilestones] = useState([]); // alınan hatıra kilometre taşları (n)
+  // Bölüm-içi ilerleme: { "cityId:puzzleId": [çözülmüş ipucu id'leri] } — bulmacadan
+  // çıkıp tekrar girince çözülen kelimeler yerinde kalsın + bölüm yüzdesi hesaplansın.
+  const [puzzleProgress, setPuzzleProgress] = useState({});
   const [purchaseEvent, setPurchaseEvent] = useState(null); // { ok, coins?, cancelled?, error? } — StoreScreen dinler
 
   useEffect(() => {
@@ -45,7 +59,7 @@ export function EconomyProvider({ children }) {
       setReady(false);
       setCoins(STARTING_COINS); setJokers(STARTING_JOKERS); setRewarded({}); setLastDaily(null);
       setOwnedThemes([DEFAULT_THEME]); setEquippedTheme(DEFAULT_THEME); setOwnedPacks([]);
-      setEndlessLevel(1); setClaimedMilestones([]);
+      setEndlessLevel(1); setClaimedMilestones([]); setPuzzleProgress({});
       return;
     }
     let alive = true;
@@ -58,7 +72,7 @@ export function EconomyProvider({ children }) {
         if (alive && raw) {
           const s = JSON.parse(raw);
           if (typeof s.coins === 'number') setCoins(s.coins);
-          if (s.jokers) setJokers({ ...STARTING_JOKERS, ...s.jokers });
+          if (s.jokers) setJokers(normJokers(s.jokers));
           if (s.rewarded) setRewarded(s.rewarded);
           if (s.lastDaily) setLastDaily(s.lastDaily);
           if (Array.isArray(s.ownedThemes) && s.ownedThemes.length) setOwnedThemes(s.ownedThemes);
@@ -66,6 +80,7 @@ export function EconomyProvider({ children }) {
           if (Array.isArray(s.ownedPacks)) setOwnedPacks(s.ownedPacks);
           if (typeof s.endlessLevel === 'number') setEndlessLevel(s.endlessLevel);
           if (Array.isArray(s.claimedMilestones)) setClaimedMilestones(s.claimedMilestones);
+          if (s.puzzleProgress && typeof s.puzzleProgress === 'object') setPuzzleProgress(s.puzzleProgress);
         }
       } catch (e) { /* yoksay */ }
 
@@ -87,6 +102,7 @@ export function EconomyProvider({ children }) {
               ownedPacks: [],
               endlessLevel: 1,
               claimedMilestones: [],
+              puzzleProgress: {},
               createdAt: serverTimestamp(),
             }).catch(() => {});
             setReady(true);
@@ -94,7 +110,9 @@ export function EconomyProvider({ children }) {
           }
           const d = snap.data();
           setCoins(d.coins || 0);
-          setJokers({ ...STARTING_JOKERS, ...(d.jokers || {}) });
+          setJokers(normJokers(d.jokers));
+          // Eskiden eksiye düşmüş joker verisi varsa Firestore'da bir kez onar.
+          if (hasNegativeJoker(d.jokers)) setDoc(ref, { jokers: normJokers(d.jokers) }, { merge: true }).catch(() => {});
           setRewarded(d.rewarded || {});
           setLastDaily(d.lastDaily || null);
           setOwnedThemes(Array.isArray(d.ownedThemes) && d.ownedThemes.length ? d.ownedThemes : [DEFAULT_THEME]);
@@ -102,12 +120,14 @@ export function EconomyProvider({ children }) {
           setOwnedPacks(Array.isArray(d.ownedPacks) ? d.ownedPacks : []);
           setEndlessLevel(typeof d.endlessLevel === 'number' ? d.endlessLevel : 1);
           setClaimedMilestones(Array.isArray(d.claimedMilestones) ? d.claimedMilestones : []);
+          setPuzzleProgress(d.puzzleProgress && typeof d.puzzleProgress === 'object' ? d.puzzleProgress : {});
           setReady(true);
           AsyncStorage.setItem(cacheKey(user.uid), JSON.stringify({
             coins: d.coins, jokers: d.jokers, rewarded: d.rewarded, lastDaily: d.lastDaily,
             ownedThemes: d.ownedThemes, equippedTheme: d.equippedTheme, ownedPacks: d.ownedPacks,
             endlessLevel: d.endlessLevel,
             claimedMilestones: d.claimedMilestones,
+            puzzleProgress: d.puzzleProgress,
           })).catch(() => {});
         },
         () => { if (alive) setReady(true); }
@@ -128,7 +148,11 @@ export function EconomyProvider({ children }) {
           // Yalnızca gerçekten SATIN ALINMIŞ (onaylanmış) işlemler altın verir.
           // Bekleyen ("Ask to Buy" / deferred) işlemler onaylanana kadar geçilir
           // ve finishTransaction YAPILMAZ (onaylanınca dinleyici tekrar tetiklenir).
-          if (purchase && purchase.purchaseState && purchase.purchaseState !== 'purchased') return;
+          if (purchase && purchase.purchaseState && purchase.purchaseState !== 'purchased') {
+            // Beklemede: mağaza ekranındaki "işleniyor" kilidini sessizce serbest bırak.
+            if (alive) setPurchaseEvent({ ok: false, pending: true });
+            return;
+          }
           const amount = PRODUCT_COINS[purchase && purchase.productId];
           const txId = (purchase && (purchase.transactionId || purchase.id)) || null;
           if (amount && txId) {
@@ -150,10 +174,14 @@ export function EconomyProvider({ children }) {
             } catch (e) {
               return; // yazılamadı → finishTransaction YAPMA (iOS tekrar dener)
             }
-          } else if (amount && !txId && alive) {
-            // transactionId yoksa (nadir) yine de bilgi ver; idempotency uygulanamaz.
-            setCoins((c) => c + amount);
-            setPurchaseEvent({ ok: true, coins: amount });
+          } else if (amount && !txId) {
+            // transactionId yoksa (nadir): idempotency uygulanamaz ama altın MUTLAKA
+            // Firestore'a yazılmalı; yoksa bir sonraki snapshot'ta yerel artış silinir.
+            write({ coins: increment(amount) });
+            if (alive) {
+              setCoins((c) => c + amount);
+              setPurchaseEvent({ ok: true, coins: amount });
+            }
           }
           await finishPurchase(purchase);
         },
@@ -188,18 +216,37 @@ export function EconomyProvider({ children }) {
 
   const useJoker = (type) => {
     if ((jokers[type] || 0) <= 0) return false;
-    setJokers((j) => ({ ...j, [type]: j[type] - 1 }));
+    setJokers((j) => ({ ...j, [type]: Math.max(0, (j[type] || 0) - 1) }));
     write({ jokers: { [type]: increment(-1) } });
     return true;
   };
 
+  // Bir bölüm çözülünce: tek bölüm için altın YOK (REWARD_FIRST_SOLVE=0). Ama bu çözüm
+  // ŞEHRİ %100 bitiriyorsa +REWARD_CITY_COMPLETE (20) altın verilir (yalnızca ilk kez).
   const rewardPuzzle = (cityId, puzzleId) => {
     const key = `${cityId}:${puzzleId}`;
     if (rewarded[key]) return 0;
-    setRewarded((r) => ({ ...r, [key]: true }));
-    setCoins((c) => c + REWARD_FIRST_SOLVE);
-    write({ coins: increment(REWARD_FIRST_SOLVE), rewarded: { [key]: true } });
-    return REWARD_FIRST_SOLVE;
+    const nextRewarded = { ...rewarded, [key]: true };
+    setRewarded(nextRewarded);
+    const city = getCity(cityId);
+    const cityJustCompleted = !!city && isCityComplete(city, nextRewarded);
+    const gold = REWARD_FIRST_SOLVE + (cityJustCompleted ? REWARD_CITY_COMPLETE : 0);
+    if (gold > 0) setCoins((c) => c + gold);
+    write({
+      rewarded: { [key]: true },
+      ...(gold > 0 ? { coins: increment(gold) } : {}),
+    });
+    return gold;
+  };
+
+  // Bölüm-içi ilerlemeyi (çözülmüş ipucu id'leri) kaydet — bulmacadan çıkıp tekrar
+  // girince çözülen kelimeler yerinde kalır; bölüm listesinde yüzde de buradan gelir.
+  const savePuzzleProgress = (cityId, puzzleId, solvedIds) => {
+    if (!cityId || !puzzleId) return;
+    const key = `${cityId}:${puzzleId}`;
+    const arr = Array.isArray(solvedIds) ? solvedIds : [];
+    setPuzzleProgress((p) => ({ ...p, [key]: arr }));
+    write({ puzzleProgress: { [key]: arr } });
   };
 
   // --- Sonsuz Mod: bir seviye çözülünce ödül + bir sonraki seviyeye ilerle ---
@@ -289,6 +336,7 @@ export function EconomyProvider({ children }) {
         themes: THEMES, ownedThemes, equippedTheme, theme, buyTheme, equipTheme,
         ownedPacks, buyPack, packOwned,
         rewarded,
+        puzzleProgress, savePuzzleProgress,
         claimedMilestones, claimMilestone,
         endlessLevel, solveEndless,
       }}

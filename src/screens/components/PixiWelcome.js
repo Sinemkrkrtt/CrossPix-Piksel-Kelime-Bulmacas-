@@ -12,9 +12,10 @@ import { PALETTE, FONT } from '../../pixel/PixelKit';
 
 const INTRO_PAGES = [
   'Merhaba! Ben Pixi, CrossPix’in rehber arısı.',
+  'Hoş geldin hediyen hazır: 100 altın ve 3 jokerin her birinden 1’er tane! 🎁',
   'Her çiçek bir şehir — dokun, sana doğru uçarım.',
   'Şehirlerde kelime bulmacaları çözersin; her kelime piksel resmi aydınlatır.',
-  'Çözdükçe altın kazanır, hatıralar biriktirirsin. Hadi başlayalım!',
+  'Bir şehri tamamen bitirince 20 altın ve bir hatıra kazanırsın. Hadi başlayalım!',
 ];
 
 const DAILY_LINES = [

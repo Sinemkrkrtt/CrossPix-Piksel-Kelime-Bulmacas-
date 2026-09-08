@@ -580,7 +580,9 @@ export default function CityMapScreen({ navigation }) {
   const d1Buyable = cityDone(START_FREE[START_FREE.length - 1]);            // başlangıç şehirleri bitti → Asya/Afrika alınabilir
   const midOpenBase = packComplete('asya') && packComplete('afrika');       // ara ücretsiz şehirler açılır
   const d2Buyable = cityDone(BASE_CITIES[BASE_CITIES.length - 1]);          // ara şehirler bitti → Amerika/Avrupa alınabilir
-  const endlessBuyable = packComplete('amerika') && packComplete('avrupa'); // iki paket bitti → Sonsuz alınabilir
+  // Sonsuz Diyarı kapısı ancak ondan ÖNCEKİ HER ŞEY — tüm şehirler (başlangıç, ara ve
+  // dört paketin tamamı) %100 bitince açılır.
+  const endlessBuyable = CITIES.every((c) => cityDone(c));
 
   // Seyahat Defteri: kaç hatıra toplandı + alınabilir kilometre taşı var mı (kırmızı nokta).
   const souvenirCount = CITIES.reduce((n, c) => n + (cityDone(c) ? 1 : 0), 0);
@@ -615,9 +617,12 @@ export default function CityMapScreen({ navigation }) {
 
   // Sonsuz Diyar açıksa, kapıdan sonra harita boyunca uzanan seviye patikası (Candy Crush gibi).
   const isEndlessOwned = ownedPacks.includes(ENDLESS_PACK.id);
+  // Kapı ANCAK ondan önceki her şey (tüm şehirler) bitmiş VE satın alınmışsa açıktır.
+  // Sadece sahip olmak yetmez — tüm şehirler bitmeden kapı açılmaz/oynanmaz.
+  const endlessUnlocked = isEndlessOwned && endlessBuyable;
   const endlessNodes = useMemo(
-    () => (isEndlessOwned ? buildLevelNodes(endlessLevel) : []),
-    [isEndlessOwned, endlessLevel]
+    () => (endlessUnlocked ? buildLevelNodes(endlessLevel) : []),
+    [endlessUnlocked, endlessLevel]
   );
   // Harita hep kapıya kadar görünür; sonsuz açıksa ∞ kuyruğuna kadar uzar.
   const contentW = endlessNodes.length
@@ -690,7 +695,7 @@ export default function CityMapScreen({ navigation }) {
 
   // Mevcut seviye madalyonunun nabız halkası (yalnızca patika açıkken)
   useEffect(() => {
-    if (!isEndlessOwned) return undefined;
+    if (!endlessUnlocked) return undefined;
     const l = Animated.loop(
       Animated.sequence([
         Animated.timing(levelPulse, { toValue: 1, duration: 1100, easing: Easing.out(Easing.ease), useNativeDriver: true }),
@@ -699,7 +704,7 @@ export default function CityMapScreen({ navigation }) {
     );
     l.start();
     return () => l.stop();
-  }, [isEndlessOwned, levelPulse]);
+  }, [endlessUnlocked, levelPulse]);
 
   // Sürekli süzülme (bob) döngüsü
   useEffect(() => {
@@ -740,6 +745,12 @@ export default function CityMapScreen({ navigation }) {
 
   const flyTo = (node) => {
     if (flying) return;
+    // Pixi'nin karşılama balonu bitmeden çiçeğe dokunulamaz — önce balon ilerletilmeli.
+    if (welcomeMode) {
+      setToast('Başla butonuna dokun, sonra şehre git');
+      setTimeout(() => setToast(null), 1800);
+      return;
+    }
     setFlying(true);
     setToast(null);
 
@@ -867,9 +878,9 @@ export default function CityMapScreen({ navigation }) {
         useNativeDriver: true,
       }).start(() => {
         setFlying(false);
-        // Sonsuz, ancak oraya kadar her şey (Amerika+Avrupa) bitince alınabilir.
+        // Sonsuz, ancak ondan önceki HER ŞEY — tüm şehirler — bitince alınabilir.
         if (!endlessBuyable) {
-          setToast('Önce Amerika ve Avrupa’yı bitir');
+          setToast('Önce tüm şehirleri bitir');
           setTimeout(() => setToast(null), 2400);
           return;
         }
@@ -893,9 +904,10 @@ export default function CityMapScreen({ navigation }) {
     });
   };
 
-  // Kapıya dokunulunca: açıksa mevcut seviyeye uç ve oyna, kilitliyse satın al.
+  // Kapıya dokunulunca: gerçekten açıksa (her şey bitmiş + sahip) oyna; değilse
+  // buyEndless — o da tüm şehirler bitmemişse "Önce tüm şehirleri bitir" der, satın aldırmaz.
   const onGate = () => {
-    if (isEndlessOwned) {
+    if (endlessUnlocked) {
       const cur = endlessNodes.find((n) => n.level === endlessLevel);
       if (cur) playLevel(cur, 'current');
     } else {
@@ -982,8 +994,8 @@ export default function CityMapScreen({ navigation }) {
           ))}
 
           {/* Haritanın sonu: Sonsuz Diyar kapısı + seviye patikası */}
-          {isEndlessOwned && <EndlessPath nodes={endlessNodes} />}
-          <EndlessGate owned={isEndlessOwned} onPress={onGate} />
+          {endlessUnlocked && <EndlessPath nodes={endlessNodes} />}
+          <EndlessGate owned={endlessUnlocked} onPress={onGate} />
           {endlessNodes.map((n) => (
             <LevelNode
               key={n.level}
@@ -994,7 +1006,7 @@ export default function CityMapScreen({ navigation }) {
             />
           ))}
           {/* Yol silikleşerek ∞'a gider — harita sonsuz */}
-          {isEndlessOwned && <EndlessTail last={endlessNodes[endlessNodes.length - 1]} />}
+          {endlessUnlocked && <EndlessTail last={endlessNodes[endlessNodes.length - 1]} />}
 
           {/* Uçan arı (maskot) — dünya koordinatında */}
           <Animated.Image
@@ -1009,7 +1021,7 @@ export default function CityMapScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      {/* Sağ üst: Seyahat Defteri (hatıra koleksiyonu) + mağaza + çıkış düğmeleri */}
+      {/* Sağ üst: Seyahat Defteri + mağaza + çıkış düğmeleri */}
       <Pressable onPress={() => navigation.navigate('Journal')} style={styles.journalBtn} hitSlop={8}>
         <PixelArt matrix={JOURNAL_ICON} pixelSize={3} palette={JOURNAL_PAL} />
         {milestoneReady && <View style={styles.dailyDot} />}

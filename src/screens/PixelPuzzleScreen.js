@@ -2,8 +2,8 @@
 // Veri güdümlü piksel-boyama bulmacası. Şekil baştan soluk görünür; kelime
 // çözüldükçe o kısım gerçek rengine kavuşur, hepsi bitince kutlar.
 // Giriş: sistem klavyesi YOK — kendi piksel klavyemiz (Türkçe) + harf kutucukları.
-import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Easing, Dimensions, Modal } from 'react-native';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated, Easing, Dimensions, Modal, ScrollView } from 'react-native';
 import { PALETTE, FONT, mix, GardenBackground, PixelArt, DETAILED_FLOWER, flowerPalette, IC_BULB, IC_MAGNIFIER, IC_WAND, IC_GIFT, jokerIconPalette } from '../pixel/PixelKit';
 import { getCity } from '../data/cities';
 import { getPuzzle } from '../data/puzzles';
@@ -91,13 +91,30 @@ export default function PixelPuzzleScreen({ navigation, route }) {
     ? Math.min(Math.floor((Math.min(W, 430) - 96) / shape.cols), Math.floor((SCREEN_H * 0.3) / shape.art.length))
     : 0;
 
+
+  const { coins, jokers, useJoker, rewardPuzzle, solveEndless, rewarded, puzzleProgress, savePuzzleProgress } = useEconomy();
+  const progressKey = `${cityId}:${puzzleId}`;
+  // Izgaranın GERÇEK boyutu (onLayout ile ölçülür) — zoom-ScrollView tam ona göre
+  // boyutlanır ki çerçeve ızgarayı sımsıkı sarsın (fazladan boşluk olmasın).
+  const [boardBox, setBoardBox] = useState(null);
+
+  // Bu bölümde daha önce çözülmüş kelimeler (bulmacadan çıkıp girince yerinde kalsın).
+  // Bölüm %100 bittiyse (rewarded) hepsi açık; değilse kaydedilen kısmi ilerleme.
+  const initialSolved = () => {
+    if (endless) return [];
+    if (rewarded[progressKey]) return Object.keys(CLUES).map(Number);
+    const saved = puzzleProgress[progressKey];
+    return Array.isArray(saved) ? saved.filter((id) => CLUES[id]) : [];
+  };
+
   const [activeClueId, setActiveClueId] = useState(null);
-  const [guess, setGuess] = useState('');
-  const [solvedClues, setSolvedClues] = useState([]);
+  // Her kutu için harf ('' = boş). Kesişen çözülmüş kelimelerden gelen harfler
+  // otomatik dolar; kullanıcı yalnızca boş kutulara yazar.
+  const [slots, setSlots] = useState([]);
+  const [solvedClues, setSolvedClues] = useState(initialSolved);
   const [done, setDone] = useState(false);
   const [shake, setShake] = useState(0);
   const [jokerMenu, setJokerMenu] = useState(false);
-  const { coins, jokers, useJoker, rewardPuzzle, solveEndless, rewarded } = useEconomy();
   const [souvenir, setSouvenir] = useState(null); // şehir %100 bitince kutlama hatırası
   const [earned, setEarned] = useState(0); // bu oturumda bu bölümden kazanılan altın
 
@@ -111,15 +128,45 @@ export default function PixelPuzzleScreen({ navigation, route }) {
   const shapePulse = useRef(new Animated.Value(1)).current;
   const sparks = useRef(SPARKS.map(() => new Animated.Value(0))).current;
 
-  // Aktif ipucunun hedef cevabı (kutucuk sayısı + kontrol için).
-  const activeAnswer = useMemo(() => {
-    if (!activeClueId) return '';
+  // Mount: daha önce çözülmüş kelimelerin hücrelerini (animasyonsuz) hemen göster.
+  useLayoutEffect(() => {
+    if (!solvedClues.length) return;
+    GRID.forEach((row, r) => row.forEach((cell, c) => {
+      const k = `${r}-${c}`;
+      if (cell?.value && cellAnims[k] && cell.clueIds?.some((id) => solvedClues.includes(id))) {
+        cellAnims[k].setValue(1);
+        animatedCells.add(k);
+      }
+    }));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // solvedClues değişince kısmi ilerlemeyi kaydet (ilk mount hariç). Sonsuz modda kaydetme.
+  const didSaveMount = useRef(false);
+  useEffect(() => {
+    if (endless) return;
+    if (!didSaveMount.current) { didSaveMount.current = true; return; }
+    savePuzzleProgress(cityId, puzzleId, solvedClues);
+  }, [solvedClues]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Aktif kelimenin sıralı hücreleri (yön: soldan sağa / yukarıdan aşağı).
+  const activeCells = useMemo(() => {
+    if (!activeClueId) return [];
     const cells = [];
-    GRID.forEach((row, r) => row.forEach((cell, c) => { if (cell?.clueIds?.includes(activeClueId) && cell.value) cells.push({ r, c, v: cell.value }); }));
+    GRID.forEach((row, r) => row.forEach((cell, c) => { if (cell?.clueIds?.includes(activeClueId) && cell.value) cells.push({ r, c, v: cell.value, cell }); }));
     const dir = CLUES[activeClueId]?.dir;
     cells.sort((a, b) => (dir === 'D' ? a.r - b.r : a.c - b.c));
-    return cells.map((x) => x.v).join('');
+    return cells;
   }, [activeClueId]);
+
+  // Aktif ipucunun hedef cevabı (kutucuk sayısı + kontrol için).
+  const activeAnswer = useMemo(() => activeCells.map((x) => x.v).join(''), [activeCells]);
+
+  // Hangi kutular kesişmeden zaten biliniyor? (Bu kutu, çözülmüş BAŞKA bir
+  // kelimeye de ait ise harfi bellidir → otomatik dolar ve kilitli gösterilir.)
+  const locked = useMemo(
+    () => activeCells.map((x) => !!x.cell.clueIds?.some((id) => id !== activeClueId && solvedClues.includes(id))),
+    [activeCells, solvedClues, activeClueId]
+  );
 
   const revealSolvedCells = (solvedList) => {
     GRID.forEach((row, r) =>
@@ -172,7 +219,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
     } else {
       setActiveClueId(available[0]);
     }
-    setGuess('');
+    // slots, aktif kelime değişince efektle (kesişme harfleriyle) sıfırlanır.
   };
 
   const submit = (finalGuess) => {
@@ -181,7 +228,6 @@ export default function PixelPuzzleScreen({ navigation, route }) {
       const next = [...solvedClues, activeClueId];
       setSolvedClues(next);
       setActiveClueId(null);
-      setGuess('');
       revealSolvedCells(next);
       if (next.length === totalClues) setTimeout(celebrate, 520);
     } else {
@@ -190,35 +236,60 @@ export default function PixelPuzzleScreen({ navigation, route }) {
     }
   };
 
+  // Aktif kelime seçilince kutuları hazırla: kesişen çözülmüş kelimelerden gelen
+  // harfleri OTOMATİK doldur (kilitli), gerisini boş bırak. Tüm kutular zaten
+  // kesişmelerden biliniyorsa kelimeyi kendiliğinden çöz.
+  useLayoutEffect(() => {
+    if (!activeClueId) { setSlots([]); return; }
+    const init = activeCells.map((x, i) => (locked[i] ? x.v : ''));
+    setSlots(init);
+    if (init.length && !init.includes('')) setTimeout(() => submit(init.join('')), 220);
+  }, [activeClueId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleKey = (letter) => {
-    if (!activeClueId || guess.length >= activeAnswer.length) return;
-    const next = guess + letter;
-    setGuess(next);
-    if (next.length === activeAnswer.length) setTimeout(() => submit(next), 120);
+    if (!activeClueId) return;
+    const i = slots.findIndex((s) => s === '');
+    if (i === -1) return; // boş kutu yok
+    const next = [...slots];
+    next[i] = letter;
+    setSlots(next);
+    if (!next.includes('')) setTimeout(() => submit(next.join('')), 120);
   };
-  const handleBackspace = () => setGuess((g) => g.slice(0, -1));
+
+  // Geri sil: kilitli olmayan en son dolu kutuyu boşaltır (kesişme harfleri silinmez).
+  const handleBackspace = () =>
+    setSlots((arr) => {
+      const nx = [...arr];
+      for (let i = nx.length - 1; i >= 0; i--) {
+        if (!locked[i] && nx[i] !== '') { nx[i] = ''; break; }
+      }
+      return nx;
+    });
 
   // Bir kelimeyi tamamen çözer (joker yardımcısı).
   const solveClue = (id) => {
     const next = [...solvedClues, id];
     setSolvedClues(next);
-    if (activeClueId === id) { setActiveClueId(null); setGuess(''); }
+    if (activeClueId === id) setActiveClueId(null);
     revealSolvedCells(next);
     if (next.length === totalClues) setTimeout(celebrate, 520);
   };
 
-  const cellUsable = !!activeClueId && jokers.cell > 0 && guess.length < activeAnswer.length && !done;
+  const cellUsable = !!activeClueId && jokers.cell > 0 && slots.includes('') && !done;
   const wordUsable = !!activeClueId && jokers.word > 0 && !done;
   const freeUsable = jokers.free > 0 && !done && Object.keys(CLUES).some((id) => !solvedClues.includes(Number(id)));
 
-  // Joker 1 — Tek Harf: aktif kelimede seçili (imleç) kutuyu doğru harfle açar.
+  // Joker 1 — Tek Harf: aktif kelimede ilk boş kutuyu doğru harfle açar.
   const jokerCell = () => {
     if (!cellUsable) return;
     setJokerMenu(false);
     if (!useJoker('cell')) return;
-    const next = guess + activeAnswer[guess.length];
-    setGuess(next);
-    if (next === activeAnswer) setTimeout(() => submit(next), 140);
+    const i = slots.findIndex((s) => s === '');
+    if (i === -1) return;
+    const next = [...slots];
+    next[i] = activeAnswer[i];
+    setSlots(next);
+    if (!next.includes('')) setTimeout(() => submit(next.join('')), 140);
   };
 
   // Joker 2 — Tüm Kelime: aktif (seçili) kelimeyi tamamen açar.
@@ -241,6 +312,42 @@ export default function PixelPuzzleScreen({ navigation, route }) {
   const totalJokers = jokers.cell + jokers.word + jokers.free;
 
   const progress = totalClues ? solvedClues.length / totalClues : 0;
+
+  // Piksel ızgarası (oynanış görünümü) — ayrı değişken, çünkü hem ölçüm hem zoom
+  // aşamasında AYNI içerik kullanılır.
+  const gridBoard = (
+    <View>
+      {GRID.map((row, r) => (
+        <View key={`r-${r}`} style={styles.row}>
+          {row.map((cell, c) => {
+            if (!cell) return <View key={`c-${c}`} style={{ width: CELL, height: CELL, margin: GAP }} />;
+            if (cell.art) return <View key={`c-${c}`} style={{ width: CELL, height: CELL, margin: GAP, backgroundColor: cell.color }} />;
+            if (!cell.value) return <View key={`c-${c}`} style={{ width: CELL, height: CELL, margin: GAP }} />;
+            const key = `${r}-${c}`;
+            const anim = cellAnims[key];
+            const active = cell.clueIds?.includes(activeClueId);
+            const bg = anim.interpolate({ inputRange: [0, 1], outputRange: [unsolvedColor(cell.color), cell.color] });
+            const scaleC = anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.16, 1] });
+            return (
+              <Pressable key={`c-${c}`} onPress={() => handleCellPress(cell)}>
+                <Animated.View
+                  style={[
+                    styles.cell,
+                    { width: CELL, height: CELL, margin: GAP, backgroundColor: bg, transform: [{ scale: scaleC }], borderColor: active ? PALETTE.gold : 'rgba(20,24,32,0.5)', borderWidth: active ? 3 : 1 },
+                    active && styles.cellActive,
+                  ]}
+                >
+                  <Animated.Text style={{ fontFamily: FONT.bold, fontSize: LETTER, color: textOn(cell.color), opacity: anim, width: '100%', textAlign: 'center' }}>
+                    {cell.value}
+                  </Animated.Text>
+                </Animated.View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -285,11 +392,13 @@ export default function PixelPuzzleScreen({ navigation, route }) {
         </View>
       </View>
 
-      {/* Tahta */}
+      {/* Tahta — çerçeve SABİT kalır; parmakla yakınlaştırınca yalnızca içindeki
+          pikseller büyür (zoom çerçeve içinde, klavyeye taşmaz). */}
       <View style={styles.boardArea}>
         <Animated.View style={[styles.boardShadow, { transform: [{ scale: boardScale }] }]}>
           <View style={styles.boardFrame}>
             {done && shape ? (
+              // Kutlama: bitmiş şekil (zoom yok, kendi nabız animasyonu var).
               <Animated.View style={{ transform: [{ scale: shapePulse }] }}>
                 {shape.art.map((rowStr, sr) => (
                   <View key={`sr-${sr}`} style={styles.row}>
@@ -300,37 +409,30 @@ export default function PixelPuzzleScreen({ navigation, route }) {
                   </View>
                 ))}
               </Animated.View>
+            ) : boardBox ? (
+              // 2. aşama: ızgara ölçüldü → tam o boyutta, kırpan bir kap; içinde zoom-ScrollView.
+              // Çerçeve SABİT kalır, yalnızca pikseller büyür; zoom kap içinde kırpılır.
+              <View style={{ width: boardBox.w, height: boardBox.h, overflow: 'hidden' }}>
+                <ScrollView
+                  style={{ flex: 1 }}
+                  maximumZoomScale={3}
+                  minimumZoomScale={1}
+                  bouncesZoom
+                  centerContent
+                  pinchGestureEnabled
+                  showsHorizontalScrollIndicator={false}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {gridBoard}
+                </ScrollView>
+              </View>
             ) : (
-              <View>
-                {GRID.map((row, r) => (
-                  <View key={`r-${r}`} style={styles.row}>
-                    {row.map((cell, c) => {
-                      if (!cell) return <View key={`c-${c}`} style={{ width: CELL, height: CELL, margin: GAP }} />;
-                      if (cell.art) return <View key={`c-${c}`} style={{ width: CELL, height: CELL, margin: GAP, backgroundColor: cell.color }} />;
-                      if (!cell.value) return <View key={`c-${c}`} style={{ width: CELL, height: CELL, margin: GAP }} />;
-                      const key = `${r}-${c}`;
-                      const anim = cellAnims[key];
-                      const active = cell.clueIds?.includes(activeClueId);
-                      const bg = anim.interpolate({ inputRange: [0, 1], outputRange: [unsolvedColor(cell.color), cell.color] });
-                      const scale = anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.16, 1] });
-                      return (
-                        <Pressable key={`c-${c}`} onPress={() => handleCellPress(cell)}>
-                          <Animated.View
-                            style={[
-                              styles.cell,
-                              { width: CELL, height: CELL, margin: GAP, backgroundColor: bg, transform: [{ scale }], borderColor: active ? PALETTE.gold : 'rgba(20,24,32,0.5)', borderWidth: active ? 3 : 1 },
-                              active && styles.cellActive,
-                            ]}
-                          >
-                            <Animated.Text style={{ fontFamily: FONT.bold, fontSize: LETTER, color: textOn(cell.color), opacity: anim }}>
-                              {cell.value}
-                            </Animated.Text>
-                          </Animated.View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ))}
+              // 1. aşama: ızgarayı doğrudan çiz + gerçek boyutunu ölç.
+              <View onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                setBoardBox({ w: width, h: height });
+              }}>
+                {gridBoard}
               </View>
             )}
 
@@ -396,13 +498,24 @@ export default function PixelPuzzleScreen({ navigation, route }) {
               </View>
               <Text style={styles.clueText}>{cleanClue(CLUES[activeClueId].text)}</Text>
 
-              {/* Harf kutucukları (yazılan cevap) */}
+              {/* Harf kutucukları (yazılan cevap) — imleç ilk boş kutuda */}
               <View style={styles.tileRow}>
-                {Array.from({ length: activeAnswer.length }).map((_, i) => (
-                  <View key={i} style={[styles.tile, i === guess.length && styles.tileCursor, guess[i] && styles.tileFilled]}>
-                    <Text style={styles.tileText}>{guess[i] || ''}</Text>
-                  </View>
-                ))}
+                {slots.map((ch, i) => {
+                  const isCursor = i === slots.findIndex((s) => s === '');
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        styles.tile,
+                        isCursor && styles.tileCursor,
+                        ch && styles.tileFilled,
+                        locked[i] && styles.tileLocked,
+                      ]}
+                    >
+                      <Text style={[styles.tileText, locked[i] && styles.tileTextLocked]}>{ch || ''}</Text>
+                    </View>
+                  );
+                })}
               </View>
 
               {/* Piksel klavye */}
@@ -411,7 +524,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
                   <View key={ri} style={styles.keyRow}>
                     {krow.map((k) => {
                       if (k === '⌫') return <Key key={k} label="SİL" flex={1.5} onPress={handleBackspace} />;
-                      if (k === '⏎') return <Key key={k} label="ÇÖZ" flex={1.5} gold onPress={() => submit(guess)} />;
+                      if (k === '⏎') return <Key key={k} label="ÇÖZ" flex={1.5} gold onPress={() => submit(slots.join(''))} />;
                       return <Key key={k} label={k} onPress={() => handleKey(k)} />;
                     })}
                   </View>
@@ -545,7 +658,9 @@ const styles = StyleSheet.create({
   tile: { width: 30, height: 34, backgroundColor: '#0E1220', borderWidth: 2, borderColor: '#3A4257', marginHorizontal: 2, alignItems: 'center', justifyContent: 'center' },
   tileFilled: { borderColor: PALETTE.cream },
   tileCursor: { borderColor: PALETTE.gold },
-  tileText: { color: PALETTE.white, fontFamily: FONT.bold, fontSize: 24 },
+  tileLocked: { backgroundColor: '#2A2410', borderColor: PALETTE.gold },
+  tileText: { color: PALETTE.white, fontFamily: FONT.bold, fontSize: 24, width: '100%', textAlign: 'center' },
+  tileTextLocked: { color: PALETTE.gold },
 
   // Piksel klavye
   keyboard: { width: '100%' },

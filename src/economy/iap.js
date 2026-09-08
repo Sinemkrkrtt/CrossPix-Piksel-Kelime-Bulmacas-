@@ -45,7 +45,8 @@ export function initIAP() {
 // Mağazadaki altın paketleri; fiyat Apple'dan. [{ ...pack, priceString, available }]
 export async function getGoldPacks() {
   const { mock } = await initIAP();
-  if (mock) return GOLD_PACKS.map((p) => ({ ...p, priceString: PLACEHOLDER_PRICES[p.id] || '—', available: false }));
+  // Expo Go (mock): paketler sahte fiyatla "satın alınabilir" görünür (mock akışı).
+  if (mock) return GOLD_PACKS.map((p) => ({ ...p, priceString: PLACEHOLDER_PRICES[p.id] || '—', available: true }));
   try {
     const products = (await RNIap.fetchProducts({ skus: SKUS, type: 'in-app' })) || [];
     return GOLD_PACKS.map((p) => {
