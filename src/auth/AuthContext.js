@@ -5,6 +5,7 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   updateProfile,
   deleteUser,
@@ -57,6 +58,19 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Parola sıfırlama e-postası gönderir (Firebase). Hesaba erişimi olmayan
+  // kullanıcı e-postasıyla şifresini sıfırlayıp tüm ilerlemesine yeniden ulaşır.
+  const resetPassword = async (email) => {
+    const mail = (email || '').trim();
+    if (!mail) return { ok: false, error: 'Önce e-posta adresini gir.' };
+    try {
+      await sendPasswordResetEmail(auth, mail);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: trMessage(e.code) };
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -77,7 +91,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, ready, register, login, logout, removeAccount }}>
+    <AuthContext.Provider value={{ user, ready, register, login, logout, removeAccount, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
