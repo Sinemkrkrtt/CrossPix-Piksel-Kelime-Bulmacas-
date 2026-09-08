@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { PALETTE, FONT, PixelArt, IC_MAGNIFIER, IC_WAND, IC_GIFT, jokerIconPalette } from '../pixel/PixelKit';
 import { useEconomy } from '../economy/EconomyContext';
 import { JOKER_META, JOKER_ORDER } from '../economy/config';
-import { getGoldPacks, requestGoldPurchase, restorePurchases } from '../economy/iap';
+import { getGoldPacks, requestGoldPurchase } from '../economy/iap';
 
 const COIN = ['.ggg.', 'gYYYg', 'gYWYg', 'gYYYg', '.ggg.'];
 const COIN_PAL = { g: '#B8901A', Y: PALETTE.gold, W: PALETTE.cream };
@@ -78,11 +78,6 @@ export default function StoreScreen({ navigation }) {
     if (res.ok === false) { setBusy(null); Alert.alert('Satın alma başarısız', res.error || 'Tekrar dene.'); return; }
     // res.ok === true → Apple satın alma akışı başladı; sonuç (onay/iptal/hata)
     // purchaseEvent dinleyicisine düşer; başarı/hata flash'ı ve busy temizliği orada.
-  };
-
-  const onRestore = async () => {
-    const res = await restorePurchases();
-    showFlash(res.ok ? 'Satın alımlar geri yüklendi.' : 'Geri yükleme başarısız.');
   };
 
   const onTheme = (t) => {
@@ -190,10 +185,6 @@ export default function StoreScreen({ navigation }) {
             );
           })}
         </View>
-
-        <Pressable onPress={onRestore} style={styles.restoreBtn} hitSlop={6}>
-          
-        </Pressable>
       </ScrollView>
 
       {flash && <View style={styles.flash}><Text style={styles.flashText}>{flash}</Text></View>}
@@ -266,8 +257,6 @@ const styles = StyleSheet.create({
   themeEquipped: { color: PALETTE.gold, fontFamily: FONT.bold, fontSize: 12, letterSpacing: 1 },
   themeEquip: { color: PALETTE.accent, fontFamily: FONT.bold, fontSize: 13, letterSpacing: 1 },
 
-  restoreBtn: { alignSelf: 'center', marginTop: 20, paddingVertical: 6 },
-  restoreText: { color: PALETTE.outline, opacity: 0.75, fontFamily: FONT.semi, fontSize: 14, textDecorationLine: 'underline' },
 
   flash: { position: 'absolute', bottom: 40, alignSelf: 'center', left: 30, right: 30, backgroundColor: PALETTE.outline, borderWidth: 2, borderColor: PALETTE.gold, paddingVertical: 12, paddingHorizontal: 16 },
   flashText: { color: PALETTE.cream, fontFamily: FONT.bold, fontSize: 17, textAlign: 'center' },
