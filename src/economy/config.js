@@ -30,7 +30,7 @@ export const ENDLESS_LEVEL_CAP = 40;    // ödül ölçeklemesinin üst sınır�
 
 // --- Reklamlar ---
 export const INTERSTITIAL_EVERY = 3;    // her N bölüm bitişinde bir geçiş reklamı
-export const REMOVE_ADS_PRODUCT = 'com.pixeldiorama.removeads'; // tek seferlik IAP
+export const REMOVE_ADS_PRODUCT = 'com.sinemkarakurt.crosspix.removeads'; // tek seferlik IAP (ASC'de oluşturulmalı)
 
 // --- Kozmetikler: harita arka plan temaları (altınla alınır, kuşanılır) ---
 // classic ücretsiz ve herkeste var; diğerleri altınla açılır.
@@ -59,10 +59,10 @@ export const getTheme = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
 // coins/bonus = verilecek altın (oyun tasarımı). productId = mağaza ürün kimliği.
 // FİYAT burada yok; mağazadan gelir (bkz. iap.js -> priceString).
 export const GOLD_PACKS = [
-  { id: 'gold_small',  productId: 'com.pixeldiorama.gold.small',  coins: 500,  bonus: 0, tag: null },
-  { id: 'gold_medium', productId: 'com.pixeldiorama.gold.medium', coins: 1000, bonus: 0, tag: 'POPÜLER' },
-  { id: 'gold_large',  productId: 'com.pixeldiorama.gold.large',  coins: 2000, bonus: 0, tag: 'EN İYİ' },
-  { id: 'gold_mega',   productId: 'com.pixeldiorama.gold.mega',   coins: 5000, bonus: 0, tag: 'MEGA' },
+  { id: 'gold_small',  productId: 'com.sinemkarakurt.crosspix.gold500',  coins: 500,  bonus: 0, tag: null },
+  { id: 'gold_medium', productId: 'com.sinemkarakurt.crosspix.gold1000', coins: 1000, bonus: 0, tag: 'POPÜLER' },
+  { id: 'gold_large',  productId: 'com.sinemkarakurt.crosspix.gold2000', coins: 2000, bonus: 0, tag: 'EN İYİ' },
+  { id: 'gold_mega',   productId: 'com.sinemkarakurt.crosspix.gold5000', coins: 5000, bonus: 0, tag: 'MEGA' },
 ];
 
 // Yer tutucu fiyatlar — SADECE mağaza bağlı değilken (Expo Go / ürün eklenmeden)

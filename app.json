@@ -8,11 +8,11 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.pixeldiorama.crosspix",
+      "bundleIdentifier": "com.sinemkarakurt.crosspix",
       "buildNumber": "1"
     },
     "android": {
-      "package": "com.pixeldiorama.crosspix",
+      "package": "com.sinemkarakurt.crosspix",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

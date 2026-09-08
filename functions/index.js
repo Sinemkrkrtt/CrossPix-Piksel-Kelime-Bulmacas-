@@ -56,12 +56,12 @@ const PUZZLES_PER_CITY = 7;
 
 // Gerçek PARA ile alınan altın paketleri (RevenueCat ürün kimliği -> altın).
 const GOLD_PACKS = {
-  'com.pixeldiorama.gold.small': 500,
-  'com.pixeldiorama.gold.medium': 1000,
-  'com.pixeldiorama.gold.large': 2000,
-  'com.pixeldiorama.gold.mega': 5000,
+  'com.sinemkarakurt.crosspix.gold500': 500,
+  'com.sinemkarakurt.crosspix.gold1000': 1000,
+  'com.sinemkarakurt.crosspix.gold2000': 2000,
+  'com.sinemkarakurt.crosspix.gold5000': 5000,
 };
-const REMOVE_ADS_PRODUCT = 'com.pixeldiorama.removeads';
+const REMOVE_ADS_PRODUCT = 'com.sinemkarakurt.crosspix.removeads';
 
 // RevenueCat webhook yetki başlığı (RevenueCat panelinde ayarladığın gizli değer).
 const REVENUECAT_AUTH = defineSecret('REVENUECAT_AUTH');
