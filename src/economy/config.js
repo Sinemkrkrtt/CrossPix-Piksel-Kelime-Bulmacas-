@@ -19,7 +19,7 @@ export const STARTING_COINS = 0;
 export const STARTING_JOKERS = { cell: 1, word: 1, free: 1 };
 
 // --- Altın kazanma yolları (oyun-içi, ücretsiz) ---
-export const REWARD_FIRST_SOLVE = 30;   // her bölüm İLK kez çözülünce
+export const REWARD_FIRST_SOLVE = 10;   // her bölüm İLK kez çözülünce
 export const DAILY_BONUS = 40;          // günde bir kez giriş bonusu
 
 // --- Sonsuz Mod (üreticiden, seviye çıktıkça zorluk artar) ---
