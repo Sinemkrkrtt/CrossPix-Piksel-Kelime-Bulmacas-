@@ -3,10 +3,27 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
+    "@expo-google-fonts/pixelify-sans": "^0.4.2",
+    "@expo-google-fonts/press-start-2p": "^0.4.1",
+    "@expo-google-fonts/silkscreen": "^0.4.2",
+    "@expo-google-fonts/vt323": "^0.4.1",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/native": "^7.3.18",
+    "@react-navigation/stack": "^7.10.24",
     "expo": "~57.0.20",
+    "expo-font": "~57.0.3",
+    "expo-linear-gradient": "~57.0.1",
     "expo-status-bar": "~57.0.1",
+    "firebase": "^12.18.0",
     "react": "19.2.3",
-    "react-native": "0.86.3"
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-google-mobile-ads": "^16.5.0",
+    "react-native-purchases": "^10.9.0",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "^15.15.5"
   },
   "scripts": {
     "start": "expo start",

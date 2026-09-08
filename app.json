@@ -19,6 +19,24 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "react-native-google-mobile-ads"
+    ],
+    "react-native-google-mobile-ads": {
+      "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+      "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+    },
+    "extra": {
+      "revenueCat": {
+        "iosKey": "",
+        "androidKey": ""
+      },
+      "admob": {
+        "iosRewardedId": "",
+        "iosInterstitialId": ""
+      }
     }
   }
 }
