@@ -1,5 +1,6 @@
 // App.js
 import React from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
@@ -37,6 +38,7 @@ export default function App() {
   if (!fontsLoaded) return null;
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <AuthProvider>
       <EconomyProvider>
         <NavigationContainer>
@@ -60,5 +62,6 @@ export default function App() {
         </NavigationContainer>
       </EconomyProvider>
     </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

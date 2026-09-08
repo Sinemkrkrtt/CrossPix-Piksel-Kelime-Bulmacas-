@@ -22,12 +22,13 @@ function CalmBackground() {
 
 export default function StoreScreen({ navigation }) {
   const {
-    coins, buyJoker, creditPurchase,
+    coins, buyJoker, creditPurchase, purchaseEvent,
     themes, ownedThemes, equippedTheme, buyTheme, equipTheme,
   } = useEconomy();
   const [packs, setPacks] = useState(null);
   const [busy, setBusy] = useState(null);
   const [flash, setFlash] = useState(null);
+  const lastPurchaseRef = useRef(purchaseEvent); // mount'taki eski olayı yok say
   // Çift-dokunma kilidi: senkron alımların (joker/tema) art arda iki kez tetiklenip
   // eksi bakiye / çift alım yapmasını önler.
   const buyLock = useRef(false);
@@ -50,6 +51,17 @@ export default function StoreScreen({ navigation }) {
 
   const showFlash = (msg) => { setFlash(msg); setTimeout(() => setFlash(null), 1600); };
 
+  // Gerçek satın alma sonucu (Apple onayı / iptal / hata) dinleyiciden buraya düşer.
+  useEffect(() => {
+    if (purchaseEvent === lastPurchaseRef.current) return; // mount'taki eski olay değil
+    lastPurchaseRef.current = purchaseEvent;
+    if (!purchaseEvent) return;
+    setBusy(null);
+    if (purchaseEvent.ok) showFlash(`+${purchaseEvent.coins} altın eklendi!`);
+    else if (!purchaseEvent.cancelled) Alert.alert('Satın alma başarısız', purchaseEvent.error || 'Tekrar dene.');
+    // iptal → sessiz geç
+  }, [purchaseEvent]);
+
   const onBuyJoker = (type) => {
     if (!lockOnce()) return;
     const res = buyJoker(type);
@@ -61,11 +73,11 @@ export default function StoreScreen({ navigation }) {
     if (busy) return;
     setBusy(pack.id);
     const res = await requestGoldPurchase(pack.productId);
-    setBusy(null);
-    if (res.mock) { creditPurchase(pack.coins); showFlash(`+${pack.coins} altın eklendi! (test)`); return; }
-    if (res.cancelled) return;
-    if (res.ok) showFlash('Satın alma işleniyor…'); // altın Apple onayıyla dinleyicide eklenir
-    else Alert.alert('Satın alma başarısız', res.error || 'Tekrar dene.');
+    if (res.mock) { setBusy(null); creditPurchase(pack.coins); showFlash(`+${pack.coins} altın eklendi! (test)`); return; }
+    if (res.cancelled) { setBusy(null); return; }
+    if (res.ok === false) { setBusy(null); Alert.alert('Satın alma başarısız', res.error || 'Tekrar dene.'); return; }
+    // res.ok === true → Apple satın alma akışı başladı; sonuç (onay/iptal/hata)
+    // purchaseEvent dinleyicisine düşer; başarı/hata flash'ı ve busy temizliği orada.
   };
 
   const onRestore = async () => {

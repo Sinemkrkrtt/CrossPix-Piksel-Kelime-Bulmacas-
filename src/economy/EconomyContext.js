@@ -11,7 +11,7 @@
 // AsyncStorage yalnızca çevrimdışı GÖSTERİM önbelleği.
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, onSnapshot, setDoc, increment, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, increment, arrayUnion, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
 import { useAuth } from '../auth/AuthContext';
 import { getPack } from '../data/cities';
@@ -38,6 +38,7 @@ export function EconomyProvider({ children }) {
   const [ownedPacks, setOwnedPacks] = useState([]);
   const [endlessLevel, setEndlessLevel] = useState(1);  // sonsuz mod güncel seviye
   const [claimedMilestones, setClaimedMilestones] = useState([]); // alınan hatıra kilometre taşları (n)
+  const [purchaseEvent, setPurchaseEvent] = useState(null); // { ok, coins?, cancelled?, error? } — StoreScreen dinler
 
   useEffect(() => {
     if (!user) {
@@ -124,18 +125,44 @@ export function EconomyProvider({ children }) {
     (async () => {
       const off = await setPurchaseListeners({
         onPurchase: async (purchase) => {
+          // Yalnızca gerçekten SATIN ALINMIŞ (onaylanmış) işlemler altın verir.
+          // Bekleyen ("Ask to Buy" / deferred) işlemler onaylanana kadar geçilir
+          // ve finishTransaction YAPILMAZ (onaylanınca dinleyici tekrar tetiklenir).
+          if (purchase && purchase.purchaseState && purchase.purchaseState !== 'purchased') return;
           const amount = PRODUCT_COINS[purchase && purchase.productId];
-          if (amount) {
-            setCoins((c) => c + amount);
+          const txId = (purchase && (purchase.transactionId || purchase.id)) || null;
+          if (amount && txId) {
             try {
-              await setDoc(doc(db, 'users', user.uid), { coins: increment(amount) }, { merge: true });
+              // Idempotency: aynı işlem (transactionId) iki kez altın vermesin.
+              // iOS bitmeyen işlemleri her açılışta tekrar gönderir; atomik kontrol+yaz.
+              const ref = doc(db, 'users', user.uid);
+              const already = await runTransaction(db, async (tx) => {
+                const snap = await tx.get(ref);
+                const d = snap.exists() ? snap.data() : {};
+                if (d.processedTx && d.processedTx[txId]) return true;
+                tx.set(ref, { coins: increment(amount), processedTx: { [txId]: true } }, { merge: true });
+                return false;
+              });
+              if (!already && alive) {
+                setCoins((c) => c + amount);
+                setPurchaseEvent({ ok: true, coins: amount });
+              }
             } catch (e) {
-              return; // yazılamadıysa finishTransaction YAPMA → iOS tekrar dener
+              return; // yazılamadı → finishTransaction YAPMA (iOS tekrar dener)
             }
+          } else if (amount && !txId && alive) {
+            // transactionId yoksa (nadir) yine de bilgi ver; idempotency uygulanamaz.
+            setCoins((c) => c + amount);
+            setPurchaseEvent({ ok: true, coins: amount });
           }
           await finishPurchase(purchase);
         },
-        onError: () => {},
+        onError: (err) => {
+          // İptal/hata UI'a bildirilir (StoreScreen dinler).
+          const code = String((err && err.code) || '');
+          const cancelled = code === 'E_USER_CANCELLED' || code.toUpperCase().includes('CANCEL');
+          if (alive) setPurchaseEvent({ ok: false, cancelled, error: String((err && err.message) || err || '') });
+        },
       });
       if (alive) cleanup = off; else off();
     })();
@@ -257,7 +284,7 @@ export function EconomyProvider({ children }) {
   return (
     <EconomyContext.Provider
       value={{
-        ready, coins, jokers,
+        ready, coins, jokers, purchaseEvent,
         buyJoker, useJoker, rewardPuzzle, canClaimDaily, claimDaily, creditPurchase,
         themes: THEMES, ownedThemes, equippedTheme, theme, buyTheme, equipTheme,
         ownedPacks, buyPack, packOwned,
