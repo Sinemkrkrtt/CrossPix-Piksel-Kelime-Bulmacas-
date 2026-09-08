@@ -2,7 +2,7 @@
 // Oyun ekonomisi ayarları — tek kaynak.
 //
 // ÖNEMLİ (Apple/Google): Gerçek PARA fiyatları burada TUTULMAZ. Altın paketlerinin
-// fiyatı çalışma anında mağazadan (RevenueCat / App Store Connect / Play Console)
+// fiyatı çalışma anında mağazadan (App Store Connect / Play Console)
 // çekilir. Burada yalnızca oyun-içi tasarım değerleri (altın miktarı, joker fiyatı)
 // bulunur; bunlar sanal para olduğu için koda yazılabilir.
 
@@ -58,5 +58,5 @@ export const GOLD_PACKS = [
 ];
 
 // Yer tutucu fiyatlar — SADECE mağaza bağlı değilken (Expo Go / ürün eklenmeden)
-// gösterilir. Yayında gerçek fiyat mağazadan (RevenueCat) gelir, bunlar kullanılmaz.
+// gösterilir. Yayında gerçek fiyat mağazadan (StoreKit) gelir, bunlar kullanılmaz.
 export const PLACEHOLDER_PRICES = { gold_small: '₺29,99', gold_medium: '₺54,99', gold_large: '₺99,99', gold_mega: '₺199,99' };

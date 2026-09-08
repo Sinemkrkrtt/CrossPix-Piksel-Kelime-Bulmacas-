@@ -5,7 +5,7 @@
 // verisine dokunulamaz). Aksiyonlar yerelde hemen uygulanır (akıcı UX) + Firestore'a
 // `increment` ile yazılır; canlı snapshot gerçek değeri yansıtır.
 // NOT: Oyun-içi altın ekonomisi istemci taraflıdır. Gerçek para satın almalar
-// Apple/RevenueCat makbuz doğrulamasıyla korunur. Tam sunucu-otoriter güvenlik
+// Apple makbuz doğrulamasıyla (react-native-iap) korunur. Tam sunucu-otoriter güvenlik
 // istersen Blaze'e geç, functions/index.js'i deploy et ve aksiyonları oradaki
 // Cloud Functions'a bağla (kod hazır).
 // AsyncStorage yalnızca çevrimdışı GÖSTERİM önbelleği.
@@ -15,7 +15,7 @@ import { doc, onSnapshot, setDoc, increment, serverTimestamp } from 'firebase/fi
 import { db } from '../firebase/firebaseConfig';
 import { useAuth } from '../auth/AuthContext';
 import { getPack } from '../data/cities';
-import { setIapUser } from './iap';
+import { setPurchaseListeners, finishPurchase, PRODUCT_COINS } from './iap';
 import {
   STARTING_COINS, STARTING_JOKERS, JOKER_META, REWARD_FIRST_SOLVE, DAILY_BONUS,
   THEMES, DEFAULT_THEME, getTheme,
@@ -68,8 +68,6 @@ export function EconomyProvider({ children }) {
         }
       } catch (e) { /* yoksay */ }
 
-      setIapUser(user.uid); // RevenueCat kimliğini kullanıcıya bağla (satın alma ilişkisi)
-
       // 2) Sunucu belgesini canlı dinle; yoksa oluştur.
       unsub = onSnapshot(
         ref,
@@ -115,6 +113,33 @@ export function EconomyProvider({ children }) {
       );
     })();
     return () => { alive = false; unsub(); };
+  }, [user]);
+
+  // Satın alma dinleyicisi: Apple satın almayı onaylayınca altını Firebase'e yaz +
+  // işlemi kapat (finishTransaction). Uygulama açılışında bekleyen işlemler de düşer.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    let cleanup = () => {};
+    (async () => {
+      const off = await setPurchaseListeners({
+        onPurchase: async (purchase) => {
+          const amount = PRODUCT_COINS[purchase && purchase.productId];
+          if (amount) {
+            setCoins((c) => c + amount);
+            try {
+              await setDoc(doc(db, 'users', user.uid), { coins: increment(amount) }, { merge: true });
+            } catch (e) {
+              return; // yazılamadıysa finishTransaction YAPMA → iOS tekrar dener
+            }
+          }
+          await finishPurchase(purchase);
+        },
+        onError: () => {},
+      });
+      if (alive) cleanup = off; else off();
+    })();
+    return () => { alive = false; cleanup(); };
   }, [user]);
 
   // Firestore'a birleştirmeli (merge) yaz — belge yoksa oluşturur, increment 0'dan başlar.
@@ -170,7 +195,7 @@ export function EconomyProvider({ children }) {
     return DAILY_BONUS;
   };
 
-  // Satın alma sonrası altın ekle (RevenueCat doğruladıktan sonra).
+  // Satın alma sonrası altın (mock/test için). Gerçekte Apple onayı dinleyicide işlenir.
   const creditPurchase = (amount) => {
     if (!amount) return;
     setCoins((c) => c + amount);

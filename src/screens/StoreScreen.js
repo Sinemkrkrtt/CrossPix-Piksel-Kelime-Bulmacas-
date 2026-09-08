@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { PALETTE, FONT, PixelArt, IC_MAGNIFIER, IC_WAND, IC_GIFT, jokerIconPalette } from '../pixel/PixelKit';
 import { useEconomy } from '../economy/EconomyContext';
 import { JOKER_META, JOKER_ORDER } from '../economy/config';
-import { getGoldPacks, purchaseGold, restorePurchases } from '../economy/iap';
+import { getGoldPacks, requestGoldPurchase, restorePurchases } from '../economy/iap';
 
 const COIN = ['.ggg.', 'gYYYg', 'gYWYg', 'gYYYg', '.ggg.'];
 const COIN_PAL = { g: '#B8901A', Y: PALETTE.gold, W: PALETTE.cream };
@@ -50,10 +50,12 @@ export default function StoreScreen({ navigation }) {
   const onBuyGold = async (pack) => {
     if (busy) return;
     setBusy(pack.id);
-    const res = await purchaseGold(pack);
+    const res = await requestGoldPurchase(pack.productId);
     setBusy(null);
-    if (res.ok) { creditPurchase(res.coins); showFlash(`+${res.coins} altın eklendi!`); }
-    else if (!res.cancelled) Alert.alert('Satın alma başarısız', res.error || 'Tekrar dene.');
+    if (res.mock) { creditPurchase(pack.coins); showFlash(`+${pack.coins} altın eklendi! (test)`); return; }
+    if (res.cancelled) return;
+    if (res.ok) showFlash('Satın alma işleniyor…'); // altın Apple onayıyla dinleyicide eklenir
+    else Alert.alert('Satın alma başarısız', res.error || 'Tekrar dene.');
   };
 
   const onRestore = async () => {

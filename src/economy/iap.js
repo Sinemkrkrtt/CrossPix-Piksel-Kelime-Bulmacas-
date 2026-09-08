@@ -1,37 +1,37 @@
 // src/economy/iap.js
-// Gerçek para ile altın satın alma katmanı (RevenueCat / react-native-purchases).
+// Gerçek para ile altın satın alma — DOĞRUDAN Apple StoreKit (react-native-iap v16 / OpenIAP).
+// RevenueCat YOK, 3. parti YOK. Expo Go'da veya native modül yokken MOCK moda düşer.
 //
-// - Native modül yalnızca "development build"te çalışır. Expo Go'da veya anahtar
-//   yokken otomatik olarak MOCK (sahte) sağlayıcıya düşer; böylece uygulama
-//   geliştirme sırasında çökmeden çalışır.
-// - Fiyatlar HER ZAMAN mağazadan (RevenueCat offerings -> product.priceString)
-//   okunur; koda gömülmez. Mock modda sadece açıkça "DEV" etiketli yer tutucular.
+// Akış: requestGoldPurchase(productId) Apple satın alma popup'ını açar. Sonuç
+// purchaseUpdatedListener'a düşer (bkz. EconomyContext); orada altın Firebase'e yazılır
+// ve finishTransaction ile işlem kapatılır (tüketilebilir → isConsumable:true).
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { GOLD_PACKS, PLACEHOLDER_PRICES } from './config';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
-let Purchases = null;
+let RNIap = null;
 let initPromise = null;
 let usingMock = true;
 
-function apiKey() {
-  const rc = Constants.expoConfig?.extra?.revenueCat || {};
-  return Platform.select({ ios: rc.iosKey, android: rc.androidKey, default: null });
-}
+export function isMockIAP() { return usingMock; }
 
-// RevenueCat'i bir kez başlat. { mock: bool } döner.
+// Ürün kimliği -> verilecek altın (dinleyici bununla altını belirler).
+export const PRODUCT_COINS = GOLD_PACKS.reduce((acc, p) => {
+  acc[p.productId] = p.coins + (p.bonus || 0);
+  return acc;
+}, {});
+
+const SKUS = GOLD_PACKS.map((p) => p.productId);
+
+// StoreKit bağlantısını bir kez kur. { mock } döner.
 export function initIAP() {
   if (initPromise) return initPromise;
   initPromise = (async () => {
     if (isExpoGo) { usingMock = true; return { mock: true, reason: 'expo-go' }; }
     try {
-      const mod = require('react-native-purchases');
-      Purchases = mod.default || mod;
-      const key = apiKey();
-      if (!key) { usingMock = true; return { mock: true, reason: 'no-api-key' }; }
-      await Purchases.configure({ apiKey: key });
+      RNIap = require('react-native-iap');
+      await RNIap.initConnection();
       usingMock = false;
       return { mock: false };
     } catch (e) {
@@ -42,32 +42,16 @@ export function initIAP() {
   return initPromise;
 }
 
-export function isMockIAP() {
-  return usingMock;
-}
-
-// RevenueCat kullanıcı kimliğini Firebase uid'ine bağla. Böylece webhook,
-// satın almayı doğru kullanıcının Firestore belgesine yazabilir.
-export async function setIapUser(uid) {
-  const { mock } = await initIAP();
-  if (mock || !uid) return;
-  try { await Purchases.logIn(uid); } catch (e) { /* yoksay */ }
-}
-
-// Mağazadaki altın paketleri. priceString mağazadan gelir.
-// [{ ...pack, priceString, available, pkg? }]
+// Mağazadaki altın paketleri; fiyat Apple'dan. [{ ...pack, priceString, available }]
 export async function getGoldPacks() {
   const { mock } = await initIAP();
-  if (mock) {
-    return GOLD_PACKS.map((p) => ({ ...p, priceString: PLACEHOLDER_PRICES[p.id] || '—', available: false }));
-  }
+  if (mock) return GOLD_PACKS.map((p) => ({ ...p, priceString: PLACEHOLDER_PRICES[p.id] || '—', available: false }));
   try {
-    const offerings = await Purchases.getOfferings();
-    const pkgs = offerings?.current?.availablePackages || [];
+    const products = (await RNIap.fetchProducts({ skus: SKUS, type: 'in-app' })) || [];
     return GOLD_PACKS.map((p) => {
-      const pkg = pkgs.find((k) => k?.product?.identifier === p.productId);
-      return pkg
-        ? { ...p, priceString: pkg.product.priceString, available: true, pkg }
+      const prod = products.find((x) => x && x.id === p.productId);
+      return prod
+        ? { ...p, priceString: prod.displayPrice || '—', available: true }
         : { ...p, priceString: '—', available: false };
     });
   } catch (e) {
@@ -75,32 +59,43 @@ export async function getGoldPacks() {
   }
 }
 
-// Satın alma. Başarılıysa { ok:true, coins } (bonus dahil) döner.
-export async function purchaseGold(pack) {
+// Satın alma popup'ını başlatır. Sonuç purchaseUpdatedListener'a düşer.
+// { ok } | { cancelled } | { mock } | { ok:false, error }
+export async function requestGoldPurchase(productId) {
   const { mock } = await initIAP();
-  const coins = pack.coins + (pack.bonus || 0);
-  if (mock) {
-    // DEV: sahte satın alma — yalnızca geliştirme için.
-    await new Promise((r) => setTimeout(r, 450));
-    return { ok: true, coins, mock: true };
-  }
+  if (mock) return { mock: true };
   try {
-    await Purchases.purchasePackage(pack.pkg);
-    return { ok: true, coins, mock: false };
+    await RNIap.requestPurchase({
+      request: { apple: { sku: productId }, google: { skus: [productId] } },
+      type: 'in-app',
+    });
+    return { ok: true };
   } catch (e) {
-    if (e?.userCancelled) return { ok: false, cancelled: true };
-    return { ok: false, error: String(e?.message || e) };
+    if (RNIap.isUserCancelledError && RNIap.isUserCancelledError(e)) return { cancelled: true };
+    if (e && e.code === 'E_USER_CANCELLED') return { cancelled: true };
+    return { ok: false, error: String((e && e.message) || e) };
   }
 }
 
-// Önceki satın alımları geri yükle (App Store gereği "Restore" butonu için).
+// Satın alma / hata dinleyicileri (uygulama başında bir kez kurulur). Temizleyici döner.
+export async function setPurchaseListeners({ onPurchase, onError }) {
+  const { mock } = await initIAP();
+  if (mock || !RNIap) return () => {};
+  const sub1 = RNIap.purchaseUpdatedListener((purchase) => { onPurchase && onPurchase(purchase); });
+  const sub2 = RNIap.purchaseErrorListener((err) => { onError && onError(err); });
+  return () => { try { sub1.remove(); sub2.remove(); } catch (e) { /* yoksay */ } };
+}
+
+// Apple'a "altını verdim, işlemi kapat" der. Tüketilebilir → tekrar alınabilsin.
+export async function finishPurchase(purchase) {
+  if (!RNIap) return;
+  try { await RNIap.finishTransaction({ purchase, isConsumable: true }); } catch (e) { /* yoksay */ }
+}
+
+// Tüketilebilir altında geri yüklenecek bir şey yoktur; API uyumu için tutulur.
 export async function restorePurchases() {
   const { mock } = await initIAP();
   if (mock) return { ok: true, mock: true };
-  try {
-    await Purchases.restorePurchases();
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: String(e?.message || e) };
-  }
+  try { await RNIap.getAvailablePurchases(); return { ok: true }; }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
