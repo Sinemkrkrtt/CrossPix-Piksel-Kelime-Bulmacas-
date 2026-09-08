@@ -4,6 +4,10 @@
 // (güvenlik kuralları: herkes yalnızca kendi belgesine erişir → başkasının
 // verisine dokunulamaz). Aksiyonlar yerelde hemen uygulanır (akıcı UX) + Firestore'a
 // `increment` ile yazılır; canlı snapshot gerçek değeri yansıtır.
+// NOT: Oyun-içi altın ekonomisi istemci taraflıdır. Gerçek para satın almalar
+// Apple/RevenueCat makbuz doğrulamasıyla korunur. Tam sunucu-otoriter güvenlik
+// istersen Blaze'e geç, functions/index.js'i deploy et ve aksiyonları oradaki
+// Cloud Functions'a bağla (kod hazır).
 // AsyncStorage yalnızca çevrimdışı GÖSTERİM önbelleği.
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';

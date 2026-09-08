@@ -2,8 +2,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Kullanıcı YALNIZCA kendi belgesini okuyup yazabilir.
-    // Başka bir kullanıcının verisine erişilemez.
+    // Blaze'siz (Spark) çalışır: istemci YALNIZCA kendi belgesini okuyup yazar;
+    // başka kullanıcının verisine erişemez. Not: oyun-içi altın ekonomisi istemci
+    // taraflıdır (sunucu doğrulaması yok). Gerçek para satın almalar Apple/RevenueCat
+    // makbuz doğrulamasıyla korunur. Tam sunucu-otoriter güvenlik için Blaze'e geçip
+    // functions/index.js'i deploy et ve bu kuralı write:false yap.
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
