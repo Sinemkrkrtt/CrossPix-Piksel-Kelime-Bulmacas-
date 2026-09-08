@@ -564,21 +564,50 @@ export default function CityMapScreen({ navigation }) {
   const { logout, removeAccount } = useAuth();
   const { theme, ownedPacks, buyPack, endlessLevel, rewarded, claimedMilestones } = useEconomy();
 
-  // Şehir tamamlandı mı? (yalnızca Seyahat Defteri hatıra sayacı için)
+  // Şehir tamamlandı mı? (tüm bölümleri çözülmüş mü)
   const cityDone = (city) => Array.isArray(city.puzzles) && city.puzzles.length > 0
     && city.puzzles.every((p) => rewarded[`${city.id}:${p.id}`]);
-  // Paketler SERBEST: önceki şehirleri bitirmeye gerek yok — hepsi doğrudan altınla alınır.
-  const d2Buyable = true;
-  const endlessBuyable = true;
+
+  // --- İLERLEME KİLİDİ ---
+  // Şehirler sırayla açılır (öncekini bitirmeden sonrakine geçilmez). Paketler ancak
+  // oraya kadar ilerleyince (kapıya ulaşınca) satın alınabilir.
+  const packComplete = (packId) => {
+    const p = PACKS.find((x) => x.id === packId);
+    if (!p) return false;
+    const cs = p.cities.map((cid) => CITIES.find((c) => c.id === cid)).filter(Boolean);
+    return cs.length > 0 && cs.every((c) => cityDone(c));
+  };
+  const d1Buyable = cityDone(START_FREE[START_FREE.length - 1]);            // başlangıç şehirleri bitti → Asya/Afrika alınabilir
+  const midOpenBase = packComplete('asya') && packComplete('afrika');       // ara ücretsiz şehirler açılır
+  const d2Buyable = cityDone(BASE_CITIES[BASE_CITIES.length - 1]);          // ara şehirler bitti → Amerika/Avrupa alınabilir
+  const endlessBuyable = packComplete('amerika') && packComplete('avrupa'); // iki paket bitti → Sonsuz alınabilir
 
   // Seyahat Defteri: kaç hatıra toplandı + alınabilir kilometre taşı var mı (kırmızı nokta).
   const souvenirCount = CITIES.reduce((n, c) => n + (cityDone(c) ? 1 : 0), 0);
   const milestoneReady = SOUVENIR_MILESTONES.some((m) => souvenirCount >= m.n && !(claimedMilestones || []).includes(m.n));
 
-  // Düğüm açık mı (oynanabilir mi)? Paket şehri → o paket alınmışsa; ücretsizler (orta dahil) hep açık.
+  // Düğüm açık mı (oynanabilir mi)? — adım adım kilit.
   const isOpen = (node) => {
-    if (node.dg) return ownedPacks.includes(node.packId);
-    return node.city.unlocked;
+    if (node.dg) {
+      // Paket şehri: paket alınmış olmalı + paket içinde sıra gelmiş olmalı.
+      if (!ownedPacks.includes(node.packId)) return false;
+      const cities = PACKS.find((p) => p.id === node.packId)?.cities || [];
+      const idx = cities.indexOf(node.city.id);
+      if (idx <= 0) return true;                       // paketin ilk şehri
+      const prev = CITIES.find((c) => c.id === cities[idx - 1]);
+      return prev ? cityDone(prev) : true;             // önceki şehir bitince açılır
+    }
+    if (node.mid) {
+      // Ara ücretsiz şehirler: önce Asya + Afrika bitmeli, sonra kendi aralarında sıralı.
+      if (!midOpenBase) return false;
+      const idx = MID_FREE.indexOf(node.city);
+      if (idx <= 0) return true;
+      return cityDone(MID_FREE[idx - 1]);
+    }
+    // Başlangıç ücretsiz şehirler: sıralı (istanbul hep açık).
+    const idx = START_FREE.indexOf(node.city);
+    if (idx <= 0) return true;
+    return cityDone(START_FREE[idx - 1]);
   };
 
   // Sonsuz Diyar açıksa, kapıdan sonra harita boyunca uzanan seviye patikası (Candy Crush gibi).
@@ -739,33 +768,42 @@ export default function CityMapScreen({ navigation }) {
         useNativeDriver: true,
       }).start(() => {
         setFlying(false);
-        // 2. elmas paketleri: aradaki ücretsizler bitmeden satın ALINAMAZ.
-        if (pack && node.dg === 2 && !d2Buyable) {
-          setToast('Önce aradaki ücretsiz şehirleri bitir');
-          setTimeout(() => setToast(null), 2400);
-        } else if (pack) {
-          Alert.alert(
-            pack.name,
-            `${pack.cities.length} yeni şehir açılır.\n${pack.price} altına satın al?`,
-            [
-              { text: 'Vazgeç', style: 'cancel' },
-              {
-                text: `${pack.price} altın`,
-                onPress: () => {
-                  const res = buyPack(pack.id);
-                  if (res.ok) setToast(`${pack.name} açıldı! 🎉`);
-                  else if (res.reason === 'coins') setToast('Yetersiz altın — mağazadan altın al');
-                  setTimeout(() => setToast(null), 1800);
+        if (pack) {
+          if (ownedPacks.includes(node.packId)) {
+            // Paket alınmış ama bu şehrin sırası gelmemiş.
+            setToast('Önce paketin önceki şehrini bitir');
+            setTimeout(() => setToast(null), 2200);
+          } else if (node.dg === 1 && !d1Buyable) {
+            setToast('Önce başlangıç şehirlerini bitir');
+            setTimeout(() => setToast(null), 2400);
+          } else if (node.dg === 2 && !d2Buyable) {
+            setToast('Önce aradaki ücretsiz şehirleri bitir');
+            setTimeout(() => setToast(null), 2400);
+          } else {
+            // Kapıya ulaşıldı → satın alma sorulur.
+            Alert.alert(
+              pack.name,
+              `${pack.cities.length} yeni şehir açılır.\n${pack.price} altına satın al?`,
+              [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                  text: `${pack.price} altın`,
+                  onPress: () => {
+                    const res = buyPack(pack.id);
+                    if (res.ok) setToast(`${pack.name} açıldı! 🎉`);
+                    else if (res.reason === 'coins') setToast('Yetersiz altın — mağazadan altın al');
+                    setTimeout(() => setToast(null), 1800);
+                  },
                 },
-              },
-            ]
-          );
+              ]
+            );
+          }
         } else if (node.mid) {
-          setToast('Bu yol kapalı — önce Asya ve Afrika’yı bitir');
+          setToast(midOpenBase ? 'Önce önceki şehri bitir' : 'Önce Asya ve Afrika’yı bitir');
           setTimeout(() => setToast(null), 2400);
         } else {
-          setToast(`${city.name} kilitli`);
-          setTimeout(() => setToast(null), 1600);
+          setToast('Önce önceki şehri bitir');
+          setTimeout(() => setToast(null), 2000);
         }
       });
     });
