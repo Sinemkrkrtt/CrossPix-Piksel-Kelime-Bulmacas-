@@ -1,25 +1,16 @@
 // src/screens/authUI.js
 // Giriş / Kayıt / Hesap ekranlarının ortak piksel arayüz parçaları.
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { PALETTE, FONT, PixelArt } from '../pixel/PixelKit';
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+import { PALETTE, FONT, GardenBackground } from '../pixel/PixelKit';
 
-// Küçük piksel arı/maskot yerine sade bir çiçek amblemi
-const EMBLEM = [
-  '..P..',
-  '.PPP.',
-  'PPCPP',
-  '.PPP.',
-  '..D..',
-  '..D..',
-];
-const EMBLEM_PAL = { P: PALETTE.gold, C: PALETTE.cream, D: '#3E9E5E' };
+// Uygulama logosu (maskot arı) — giriş/kayıt başlığında
+const LOGO = require('../../assets/Logo.png');
 
 export function AuthShell({ title, navigation, children, showBack = true }) {
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#A6E3F5', '#82CDEC', '#5FB6DF']} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
+      <GardenBackground />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {showBack && navigation && (
@@ -28,7 +19,7 @@ export function AuthShell({ title, navigation, children, showBack = true }) {
             </Pressable>
           )}
 
-          <View style={styles.emblemWrap}><PixelArt matrix={EMBLEM} pixelSize={9} palette={EMBLEM_PAL} /></View>
+          <View style={styles.emblemWrap}><Image source={LOGO} style={styles.logo} resizeMode="contain" /></View>
 
           <View style={styles.titleShadow}>
             <View style={styles.titleInner}>
@@ -93,7 +84,8 @@ const styles = StyleSheet.create({
   backBtn: { position: 'absolute', top: 46, left: 16, width: 48, height: 48, backgroundColor: PALETTE.outline, borderWidth: 3, borderColor: PALETTE.gold, alignItems: 'center', justifyContent: 'center' },
   backText: { color: PALETTE.gold, fontFamily: FONT.bold, fontSize: 38, lineHeight: 40, marginTop: -8 },
 
-  emblemWrap: { marginBottom: 16 },
+  emblemWrap: { marginBottom: 14, alignItems: 'center' },
+  logo: { width: 128, height: 128 },
   titleShadow: { backgroundColor: PALETTE.outline, padding: 3, marginBottom: 20 },
   titleInner: { backgroundColor: PALETTE.card, borderWidth: 3, borderColor: PALETTE.gold, paddingVertical: 12, paddingHorizontal: 26, alignItems: 'center' },
   titleText: { color: PALETTE.gold, fontFamily: FONT.arcade, fontSize: 15, letterSpacing: 1 },

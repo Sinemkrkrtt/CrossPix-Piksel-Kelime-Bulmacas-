@@ -29,7 +29,6 @@ export default function RegisterScreen({ navigation }) {
   return (
     <AuthShell title="KAYIT OL" navigation={navigation} showBack={false}>
       <AuthError text={err} />
-      <AuthField label="AD (isteğe bağlı)" value={name} onChangeText={setName} placeholder="Adın" autoCapitalize="words" />
       <AuthField label="E-POSTA" value={email} onChangeText={setEmail} keyboardType="email-address" placeholder="ornek@mail.com" textContentType="emailAddress" />
       <AuthField label="ŞİFRE" value={password} onChangeText={setPassword} secureTextEntry placeholder="En az 6 karakter" textContentType="newPassword" />
       <AuthField label="ŞİFRE (TEKRAR)" value={password2} onChangeText={setPassword2} secureTextEntry placeholder="Şifreni tekrar gir" />
