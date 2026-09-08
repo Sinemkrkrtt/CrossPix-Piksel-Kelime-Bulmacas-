@@ -1,7 +1,7 @@
 // src/screens/StoreScreen.js
 // Tutarlı, profesyonel market. Sıra: Jokerler (3 yan yana) · Altın paketleri · Temalar.
 // Reklam YOK.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PALETTE, FONT, PixelArt, IC_MAGNIFIER, IC_WAND, IC_GIFT, jokerIconPalette } from '../pixel/PixelKit';
@@ -28,6 +28,15 @@ export default function StoreScreen({ navigation }) {
   const [packs, setPacks] = useState(null);
   const [busy, setBusy] = useState(null);
   const [flash, setFlash] = useState(null);
+  // Çift-dokunma kilidi: senkron alımların (joker/tema) art arda iki kez tetiklenip
+  // eksi bakiye / çift alım yapmasını önler.
+  const buyLock = useRef(false);
+  const lockOnce = () => {
+    if (buyLock.current) return false;
+    buyLock.current = true;
+    setTimeout(() => { buyLock.current = false; }, 350);
+    return true;
+  };
 
   useEffect(() => {
     let alive = true;
@@ -42,6 +51,7 @@ export default function StoreScreen({ navigation }) {
   const showFlash = (msg) => { setFlash(msg); setTimeout(() => setFlash(null), 1600); };
 
   const onBuyJoker = (type) => {
+    if (!lockOnce()) return;
     const res = buyJoker(type);
     if (res.ok) showFlash(`${JOKER_META[type].name} alındı!`);
     else if (res.reason === 'coins') showFlash('Yetersiz altın');
@@ -65,9 +75,11 @@ export default function StoreScreen({ navigation }) {
 
   const onTheme = (t) => {
     if (t.id === equippedTheme) return;
+    if (!lockOnce()) return;
     if (ownedThemes.includes(t.id)) { equipTheme(t.id); showFlash(`${t.name} kuşanıldı`); return; }
+    // buyTheme artık satın alınca aynı anda kuşanıyor (ayrı equipTheme çağrısına gerek yok).
     const res = buyTheme(t.id);
-    if (res.ok) { equipTheme(t.id); showFlash(`${t.name} alındı ve kuşanıldı`); }
+    if (res.ok) showFlash(`${t.name} alındı ve kuşanıldı`);
     else if (res.reason === 'coins') showFlash('Yetersiz altın');
   };
 

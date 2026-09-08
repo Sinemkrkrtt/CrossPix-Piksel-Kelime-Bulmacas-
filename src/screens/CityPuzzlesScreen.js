@@ -1,26 +1,24 @@
 // src/screens/CityPuzzlesScreen.js
-// Bir şehrin içindeki 5 bulmaca. Arı çiçeğe konunca buraya gelinir.
+// Bir şehrin içindeki 7 bulmaca. Arı çiçeğe konunca buraya gelinir.
+// Çözülmüş durum ekonomideki `rewarded`'dan okunur (statik status DEĞİL).
+// Şehir haritada açıksa 7 bölüm de oynanabilir; çözülen "BİTTİ" olur.
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { PALETTE, FONT, GardenBackground, PixelArt, DETAILED_FLOWER, flowerPalette } from '../pixel/PixelKit';
 import { getCity } from '../data/cities';
-
-const STATUS_LABEL = { active: 'OYNA', solved: 'BİTTİ', locked: 'KİLİTLİ' };
+import { useEconomy } from '../economy/EconomyContext';
 
 export default function CityPuzzlesScreen({ navigation, route }) {
   const city = getCity(route.params?.cityId) || getCity('istanbul');
+  const { rewarded } = useEconomy();
   const [toast, setToast] = useState(null);
 
+  const isSolved = (p) => !!rewarded[`${city.id}:${p.id}`];
   const total = city.puzzles.length;
-  const solved = city.puzzles.filter((p) => p.status === 'solved').length;
+  const solved = city.puzzles.filter(isSolved).length;
 
   const openPuzzle = (p) => {
-    if (p.status === 'active' || p.status === 'solved') {
-      navigation.navigate(p.route || 'Puzzle', { cityId: city.id, puzzleId: p.id });
-    } else {
-      setToast('Bu bulmaca henüz kilitli — sıradakini çöz 🌸');
-      setTimeout(() => setToast(null), 1600);
-    }
+    navigation.navigate(p.route || 'Puzzle', { cityId: city.id, puzzleId: p.id });
   };
 
   return (
@@ -53,7 +51,7 @@ export default function CityPuzzlesScreen({ navigation, route }) {
               key={p.id}
               style={[
                 styles.progSeg,
-                p.status === 'solved' ? styles.progSegDone : styles.progSegTodo,
+                isSolved(p) ? styles.progSegDone : styles.progSegTodo,
                 i > 0 && { marginLeft: 4 },
               ]}
             />
@@ -64,42 +62,29 @@ export default function CityPuzzlesScreen({ navigation, route }) {
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {city.puzzles.map((p, i) => {
-          const isOpen = p.status === 'active' || p.status === 'solved';
+          const done = isSolved(p);
           return (
             <Pressable
               key={p.id}
               onPress={() => openPuzzle(p)}
-              style={[styles.card, isOpen ? styles.cardOpen : styles.cardLocked]}
+              style={[styles.card, styles.cardOpen]}
             >
               <View style={styles.budWrap}>
                 <PixelArt
                   matrix={DETAILED_FLOWER}
                   pixelSize={3}
-                  palette={p.status === 'locked' ? flowerPalette('#8A93A8', true) : flowerPalette(city.petal, false)}
+                  palette={flowerPalette(city.petal, false)}
                 />
               </View>
 
               <View style={styles.cardBody}>
-                <Text style={[styles.section, !isOpen && styles.dim]}>BÖLÜM {i + 1}</Text>
-                <Text style={[styles.puzzleTitle, !isOpen && styles.dim]}>{p.title}</Text>
+                <Text style={styles.section}>BÖLÜM {i + 1}</Text>
+                <Text style={styles.puzzleTitle}>{p.title}</Text>
               </View>
 
-              <View
-                style={[
-                  styles.badge,
-                  p.status === 'active' && styles.badgeActive,
-                  p.status === 'solved' && styles.badgeSolved,
-                  p.status === 'locked' && styles.badgeLocked,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.badgeText,
-                    p.status === 'active' && { color: PALETTE.outline },
-                    p.status === 'locked' && { color: PALETTE.muted },
-                  ]}
-                >
-                  {STATUS_LABEL[p.status]}
+              <View style={[styles.badge, done ? styles.badgeSolved : styles.badgeActive]}>
+                <Text style={[styles.badgeText, !done && { color: PALETTE.outline }]}>
+                  {done ? 'BİTTİ' : 'OYNA'}
                 </Text>
               </View>
             </Pressable>

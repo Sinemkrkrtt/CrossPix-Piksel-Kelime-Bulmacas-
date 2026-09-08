@@ -11,7 +11,7 @@
 // AsyncStorage yalnızca çevrimdışı GÖSTERİM önbelleği.
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, onSnapshot, setDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, increment, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
 import { useAuth } from '../auth/AuthContext';
 import { getPack } from '../data/cities';
@@ -209,8 +209,9 @@ export function EconomyProvider({ children }) {
     if (ownedThemes.includes(themeId)) return { ok: true, already: true };
     if (coins < t.price) return { ok: false, reason: 'coins' };
     setCoins((c) => c - t.price);
-    setOwnedThemes((o) => [...o, themeId]);
-    write({ coins: increment(-t.price), ownedThemes: [...ownedThemes, themeId] });
+    setOwnedThemes((o) => (o.includes(themeId) ? o : [...o, themeId]));
+    setEquippedTheme(themeId); // satın alınca aynı anda kuşan (stale closure sorunu yok)
+    write({ coins: increment(-t.price), ownedThemes: arrayUnion(themeId), equippedTheme: themeId });
     return { ok: true };
   };
 
@@ -230,8 +231,8 @@ export function EconomyProvider({ children }) {
     if (ownedPacks.includes(packId)) return { ok: true, already: true };
     if (coins < p.price) return { ok: false, reason: 'coins' };
     setCoins((c) => c - p.price);
-    setOwnedPacks((o) => [...o, packId]);
-    write({ coins: increment(-p.price), ownedPacks: [...ownedPacks, packId] });
+    setOwnedPacks((o) => (o.includes(packId) ? o : [...o, packId]));
+    write({ coins: increment(-p.price), ownedPacks: arrayUnion(packId) });
     return { ok: true };
   };
   const packOwned = (packId) => ownedPacks.includes(packId);
@@ -241,13 +242,13 @@ export function EconomyProvider({ children }) {
     if (claimedMilestones.includes(n)) return { ok: false, reason: 'already' };
     if (collected < n) return { ok: false, reason: 'locked' };
     setCoins((c) => c + reward);
-    setClaimedMilestones((m) => [...m, n]);
-    const patch = { coins: increment(reward), claimedMilestones: [...claimedMilestones, n] };
+    setClaimedMilestones((m) => (m.includes(n) ? m : [...m, n]));
+    const patch = { coins: increment(reward), claimedMilestones: arrayUnion(n) };
     let gotTheme = null;
     if (themeId && !ownedThemes.includes(themeId)) {
       gotTheme = themeId;
-      setOwnedThemes((o) => [...o, themeId]);
-      patch.ownedThemes = [...ownedThemes, themeId];
+      setOwnedThemes((o) => (o.includes(themeId) ? o : [...o, themeId]));
+      patch.ownedThemes = arrayUnion(themeId);
     }
     write(patch);
     return { ok: true, reward, theme: gotTheme };

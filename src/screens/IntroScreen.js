@@ -20,7 +20,7 @@ import { useAuth } from '../auth/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const LOGO_SOURCE = require('/Users/sinem/pixel-diorama/assets/Logo.png');
+const LOGO_SOURCE = require('../../assets/Logo.png');
 const LOADING_DURATION = 2600; // ms — barın dolma süresi
 
 // Piksel barın kaç bloğa bölüneceği + retro readout için monospace font
