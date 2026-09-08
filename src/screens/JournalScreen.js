@@ -1,6 +1,6 @@
 // src/screens/JournalScreen.js
 // Seyahat Defteri — SADECE damgalar. Her şehir %100 bitince o şehrin damgası basılır.
-// Kilometre taşı ödülleri (altın + %100'de Kâşif teması) sessizce, otomatik verilir.
+// Kilometre taşı ödülleri (altın) sessizce, otomatik verilir.
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -50,7 +50,7 @@ export default function JournalScreen({ navigation }) {
     if (due) {
       const res = claimMilestone(due.n, due.reward, collected, due.themeId);
       if (res.ok) {
-        setFlash(res.theme ? `👑 Kâşif teması açıldı  ·  +${due.reward}` : `+${due.reward} altın`);
+        setFlash(`+${due.reward} altın`);
         setTimeout(() => setFlash(null), 2400);
       }
     }

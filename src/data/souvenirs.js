@@ -85,7 +85,7 @@ export const SOUVENIR_MILESTONES = [
   { n: 10, reward: 400 },
   { n: 20, reward: 800 },
   { n: 30, reward: 1200 },
-  { n: CITIES.length, reward: 2000, themeId: 'kasif' }, // hepsi → altın + özel "Kâşif" teması
+  { n: CITIES.length, reward: 2000 }, // hepsi tamamlanınca altın ödülü
 ];
 
 export const TOTAL_CITIES = CITIES.length;

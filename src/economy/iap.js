@@ -8,7 +8,7 @@
 //   okunur; koda gömülmez. Mock modda sadece açıkça "DEV" etiketli yer tutucular.
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { GOLD_PACKS, PLACEHOLDER_PRICES, REMOVE_ADS_PRODUCT, REMOVE_ADS_PRICE } from './config';
+import { GOLD_PACKS, PLACEHOLDER_PRICES } from './config';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
@@ -87,33 +87,6 @@ export async function purchaseGold(pack) {
   try {
     await Purchases.purchasePackage(pack.pkg);
     return { ok: true, coins, mock: false };
-  } catch (e) {
-    if (e?.userCancelled) return { ok: false, cancelled: true };
-    return { ok: false, error: String(e?.message || e) };
-  }
-}
-
-// "Reklamları Kaldır" fiyatı — mağazadan; yoksa yer tutucu.
-export async function getRemoveAdsPrice() {
-  const { mock } = await initIAP();
-  if (mock) return REMOVE_ADS_PRICE;
-  try {
-    const products = await Purchases.getProducts([REMOVE_ADS_PRODUCT]);
-    return (products && products[0] && products[0].priceString) || REMOVE_ADS_PRICE;
-  } catch (e) {
-    return REMOVE_ADS_PRICE;
-  }
-}
-
-// "Reklamları Kaldır" — tek seferlik (non-consumable) satın alma.
-export async function purchaseRemoveAds() {
-  const { mock } = await initIAP();
-  if (mock) { await new Promise((r) => setTimeout(r, 450)); return { ok: true, mock: true }; }
-  try {
-    const products = await Purchases.getProducts([REMOVE_ADS_PRODUCT]);
-    if (!products || !products.length) return { ok: false, error: 'Ürün bulunamadı' };
-    await Purchases.purchaseStoreProduct(products[0]);
-    return { ok: true };
   } catch (e) {
     if (e?.userCancelled) return { ok: false, cancelled: true };
     return { ok: false, error: String(e?.message || e) };

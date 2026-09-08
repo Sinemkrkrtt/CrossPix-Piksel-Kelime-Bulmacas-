@@ -10,7 +10,6 @@ import { getPuzzle } from '../data/puzzles';
 import { getEndlessPuzzle } from '../data/endless';
 import { getSouvenir } from '../data/souvenirs';
 import { useEconomy } from '../economy/EconomyContext';
-import { showInterstitial } from '../economy/ads';
 import SouvenirCelebration from './components/SouvenirCelebration';
 
 const { width: W, height: SCREEN_H } = Dimensions.get('window');
@@ -98,7 +97,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
   const [done, setDone] = useState(false);
   const [shake, setShake] = useState(0);
   const [jokerMenu, setJokerMenu] = useState(false);
-  const { coins, jokers, useJoker, rewardPuzzle, solveEndless, shouldShowInterstitial, rewarded } = useEconomy();
+  const { coins, jokers, useJoker, rewardPuzzle, solveEndless, rewarded } = useEconomy();
   const [souvenir, setSouvenir] = useState(null); // şehir %100 bitince kutlama hatırası
   const [earned, setEarned] = useState(0); // bu oturumda bu bölümden kazanılan altın
 
@@ -147,8 +146,6 @@ export default function PixelPuzzleScreen({ navigation, route }) {
       const nowComplete = (city.puzzles || []).every((p) => p.id === puzzleId || rewarded[`${cityId}:${p.id}`]);
       if (nowComplete) setTimeout(() => setSouvenir(getSouvenir(cityId)), 900);
     }
-    // Her N bölüm bitişinde bir geçiş reklamı (reklamlar kaldırılmadıysa).
-    if (shouldShowInterstitial()) setTimeout(() => { showInterstitial(); }, 1300);
     Animated.sequence([
       Animated.spring(boardScale, { toValue: 1.12, friction: 3, useNativeDriver: true }),
       Animated.spring(boardScale, { toValue: 1, friction: 4, useNativeDriver: true }),

@@ -9,7 +9,7 @@
 // istersen Blaze'e geç, functions/index.js'i deploy et ve aksiyonları oradaki
 // Cloud Functions'a bağla (kod hazır).
 // AsyncStorage yalnızca çevrimdışı GÖSTERİM önbelleği.
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, onSnapshot, setDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebaseConfig';
@@ -18,7 +18,7 @@ import { getPack } from '../data/cities';
 import { setIapUser } from './iap';
 import {
   STARTING_COINS, STARTING_JOKERS, JOKER_META, REWARD_FIRST_SOLVE, DAILY_BONUS,
-  THEMES, DEFAULT_THEME, getTheme, INTERSTITIAL_EVERY,
+  THEMES, DEFAULT_THEME, getTheme,
   ENDLESS_BASE_REWARD, ENDLESS_LEVEL_STEP, ENDLESS_LEVEL_CAP,
 } from './config';
 
@@ -33,19 +33,17 @@ export function EconomyProvider({ children }) {
   const [jokers, setJokers] = useState(STARTING_JOKERS);
   const [rewarded, setRewarded] = useState({});
   const [lastDaily, setLastDaily] = useState(null);
-  const [adsRemoved, setAdsRemoved] = useState(false);
   const [ownedThemes, setOwnedThemes] = useState([DEFAULT_THEME]);
   const [equippedTheme, setEquippedTheme] = useState(DEFAULT_THEME);
   const [ownedPacks, setOwnedPacks] = useState([]);
   const [endlessLevel, setEndlessLevel] = useState(1);  // sonsuz mod güncel seviye
   const [claimedMilestones, setClaimedMilestones] = useState([]); // alınan hatıra kilometre taşları (n)
-  const solveTick = useRef(0); // geçiş reklamı sayacı
 
   useEffect(() => {
     if (!user) {
       setReady(false);
       setCoins(STARTING_COINS); setJokers(STARTING_JOKERS); setRewarded({}); setLastDaily(null);
-      setAdsRemoved(false); setOwnedThemes([DEFAULT_THEME]); setEquippedTheme(DEFAULT_THEME); setOwnedPacks([]);
+      setOwnedThemes([DEFAULT_THEME]); setEquippedTheme(DEFAULT_THEME); setOwnedPacks([]);
       setEndlessLevel(1); setClaimedMilestones([]);
       return;
     }
@@ -62,7 +60,6 @@ export function EconomyProvider({ children }) {
           if (s.jokers) setJokers({ ...STARTING_JOKERS, ...s.jokers });
           if (s.rewarded) setRewarded(s.rewarded);
           if (s.lastDaily) setLastDaily(s.lastDaily);
-          if (typeof s.adsRemoved === 'boolean') setAdsRemoved(s.adsRemoved);
           if (Array.isArray(s.ownedThemes) && s.ownedThemes.length) setOwnedThemes(s.ownedThemes);
           if (s.equippedTheme) setEquippedTheme(s.equippedTheme);
           if (Array.isArray(s.ownedPacks)) setOwnedPacks(s.ownedPacks);
@@ -86,7 +83,6 @@ export function EconomyProvider({ children }) {
               jokers: STARTING_JOKERS,
               rewarded: {},
               lastDaily: null,
-              adsRemoved: false,
               ownedThemes: [DEFAULT_THEME],
               equippedTheme: DEFAULT_THEME,
               ownedPacks: [],
@@ -102,7 +98,6 @@ export function EconomyProvider({ children }) {
           setJokers({ ...STARTING_JOKERS, ...(d.jokers || {}) });
           setRewarded(d.rewarded || {});
           setLastDaily(d.lastDaily || null);
-          setAdsRemoved(!!d.adsRemoved);
           setOwnedThemes(Array.isArray(d.ownedThemes) && d.ownedThemes.length ? d.ownedThemes : [DEFAULT_THEME]);
           setEquippedTheme(d.equippedTheme || DEFAULT_THEME);
           setOwnedPacks(Array.isArray(d.ownedPacks) ? d.ownedPacks : []);
@@ -111,7 +106,7 @@ export function EconomyProvider({ children }) {
           setReady(true);
           AsyncStorage.setItem(cacheKey(user.uid), JSON.stringify({
             coins: d.coins, jokers: d.jokers, rewarded: d.rewarded, lastDaily: d.lastDaily,
-            adsRemoved: d.adsRemoved, ownedThemes: d.ownedThemes, equippedTheme: d.equippedTheme, ownedPacks: d.ownedPacks,
+            ownedThemes: d.ownedThemes, equippedTheme: d.equippedTheme, ownedPacks: d.ownedPacks,
             endlessLevel: d.endlessLevel,
             claimedMilestones: d.claimedMilestones,
           })).catch(() => {});
@@ -182,19 +177,6 @@ export function EconomyProvider({ children }) {
     write({ coins: increment(amount) });
   };
 
-  // Genel altın ekleme (ödüllü reklam vb.).
-  const addCoins = (amount) => {
-    if (!amount) return;
-    setCoins((c) => c + amount);
-    write({ coins: increment(amount) });
-  };
-
-  // Reklamları kaldır (IAP doğrulandıktan sonra).
-  const removeAds = () => {
-    setAdsRemoved(true);
-    write({ adsRemoved: true });
-  };
-
   // Tema satın al (ALTIN ile).
   const buyTheme = (themeId) => {
     const t = getTheme(themeId);
@@ -246,19 +228,11 @@ export function EconomyProvider({ children }) {
     return { ok: true, reward, theme: gotTheme };
   };
 
-  // Bölüm bitince çağrılır; geçiş reklamı zamanı geldi mi? (reklamlar kaldırıldıysa asla)
-  const shouldShowInterstitial = () => {
-    if (adsRemoved) return false;
-    solveTick.current += 1;
-    return solveTick.current % INTERSTITIAL_EVERY === 0;
-  };
-
   return (
     <EconomyContext.Provider
       value={{
         ready, coins, jokers,
-        buyJoker, useJoker, rewardPuzzle, canClaimDaily, claimDaily, creditPurchase, addCoins,
-        adsRemoved, removeAds, shouldShowInterstitial,
+        buyJoker, useJoker, rewardPuzzle, canClaimDaily, claimDaily, creditPurchase,
         themes: THEMES, ownedThemes, equippedTheme, theme, buyTheme, equipTheme,
         ownedPacks, buyPack, packOwned,
         rewarded,

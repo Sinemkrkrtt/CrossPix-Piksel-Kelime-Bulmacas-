@@ -17,8 +17,6 @@ const STARTING_COINS = 0;
 const STARTING_JOKERS = { cell: 1, word: 1, free: 1 };
 const REWARD_FIRST_SOLVE = 30;
 const DAILY_BONUS = 40;
-const AD_REWARD = 20;
-const AD_REWARDS_PER_DAY = 25; // ödüllü reklam günlük üst sınır (farmı sınırlar)
 
 const JOKER_PRICES = { cell: 100, free: 150, word: 250 };
 
@@ -61,7 +59,6 @@ const GOLD_PACKS = {
   'com.sinemkarakurt.crosspix.gold2000': 2000,
   'com.sinemkarakurt.crosspix.gold5000': 5000,
 };
-const REMOVE_ADS_PRODUCT = 'com.sinemkarakurt.crosspix.removeads';
 
 // RevenueCat webhook yetki başlığı (RevenueCat panelinde ayarladığın gizli değer).
 const REVENUECAT_AUTH = defineSecret('REVENUECAT_AUTH');
@@ -85,7 +82,6 @@ async function ensureUserDoc(uid, token) {
       jokers: STARTING_JOKERS,
       rewarded: {},
       lastDaily: null,
-      adsRemoved: false,
       ownedThemes: ['classic'],
       equippedTheme: 'classic',
       ownedPacks: [],
@@ -203,25 +199,6 @@ exports.solveEndless = onCall(async (req) => {
   });
 });
 
-// Ödüllü reklam altını (günlük üst sınırlı — farmı önler). Miktar SUNUCUDA sabittir.
-exports.grantAdReward = onCall(async (req) => {
-  const uid = requireAuth(req);
-  const ref = await ensureUserDoc(uid, req.auth.token);
-  const today = todayStr();
-  return db.runTransaction(async (tx) => {
-    const s = await tx.get(ref);
-    const d = s.data();
-    const day = d.adRewardDay === today ? (d.adRewardCount || 0) : 0;
-    if (day >= AD_REWARDS_PER_DAY) return { ok: false, reason: 'limit' };
-    tx.update(ref, {
-      coins: (d.coins || 0) + AD_REWARD,
-      adRewardDay: today,
-      adRewardCount: day + 1,
-    });
-    return { ok: true, awarded: AD_REWARD };
-  });
-});
-
 // Tema satın al (ALTIN ile). Sunucu fiyat + bakiye kontrol eder.
 exports.buyTheme = onCall(async (req) => {
   const uid = requireAuth(req);
@@ -326,8 +303,7 @@ exports.revenueCatWebhook = onRequest({ secrets: [REVENUECAT_AUTH] }, async (req
   }
 
   const coins = GOLD_PACKS[productId];
-  const isRemoveAds = productId === REMOVE_ADS_PRODUCT;
-  if (!coins && !isRemoveAds) { res.status(200).send('unknown product'); return; }
+  if (!coins) { res.status(200).send('unknown product'); return; }
 
   const ref = userRef(uid);
   const evtRef = db.collection('processedEvents').doc(eventId);
@@ -336,18 +312,14 @@ exports.revenueCatWebhook = onRequest({ secrets: [REVENUECAT_AUTH] }, async (req
       const evt = await tx.get(evtRef);
       if (evt.exists) return; // idempotent — aynı olayı iki kez işleme
       const s = await tx.get(ref);
-      const patch = {};
-      if (coins) patch.coins = ((s.exists && s.data().coins) || 0) + coins;
-      if (isRemoveAds) patch.adsRemoved = true;
       if (s.exists) {
-        tx.update(ref, patch);
+        tx.update(ref, { coins: ((s.data().coins) || 0) + coins });
       } else {
         tx.set(ref, {
-          coins: STARTING_COINS + (coins || 0),
+          coins: STARTING_COINS + coins,
           jokers: STARTING_JOKERS,
           rewarded: {},
           lastDaily: null,
-          adsRemoved: !!isRemoveAds,
           ownedThemes: ['classic'],
           equippedTheme: 'classic',
           ownedPacks: [],
@@ -356,7 +328,7 @@ exports.revenueCatWebhook = onRequest({ secrets: [REVENUECAT_AUTH] }, async (req
           createdAt: FieldValue.serverTimestamp(),
         });
       }
-      tx.set(evtRef, { uid, productId, coins: coins || 0, removeAds: !!isRemoveAds, at: FieldValue.serverTimestamp() });
+      tx.set(evtRef, { uid, productId, coins, at: FieldValue.serverTimestamp() });
     });
     res.status(200).send('ok');
   } catch (e) {

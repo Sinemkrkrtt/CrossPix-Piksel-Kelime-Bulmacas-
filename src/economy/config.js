@@ -21,16 +21,11 @@ export const STARTING_JOKERS = { cell: 1, word: 1, free: 1 };
 // --- Altın kazanma yolları (oyun-içi, ücretsiz) ---
 export const REWARD_FIRST_SOLVE = 30;   // her bölüm İLK kez çözülünce
 export const DAILY_BONUS = 40;          // günde bir kez giriş bonusu
-export const AD_REWARD = 20;            // ödüllü reklam izleyince
 
 // --- Sonsuz Mod (üreticiden, seviye çıktıkça zorluk artar) ---
 export const ENDLESS_BASE_REWARD = 12;  // temel altın
 export const ENDLESS_LEVEL_STEP = 2;    // seviye başına ek altın
 export const ENDLESS_LEVEL_CAP = 40;    // ödül ölçeklemesinin üst sınırı (seviye)
-
-// --- Reklamlar ---
-export const INTERSTITIAL_EVERY = 3;    // her N bölüm bitişinde bir geçiş reklamı
-export const REMOVE_ADS_PRODUCT = 'com.sinemkarakurt.crosspix.removeads'; // tek seferlik IAP (ASC'de oluşturulmalı)
 
 // --- Kozmetikler: harita arka plan temaları (altınla alınır, kuşanılır) ---
 // classic ücretsiz ve herkeste var; diğerleri altınla açılır.
@@ -48,9 +43,6 @@ export const THEMES = [
   { id: 'winter',  name: 'Kış',        price: 600, sky: '#CFE8F4', skyBottom: '#EDF7FC', grass: '#DCEBEF', grassDark: '#AFC8D2',
     tree: { G: '#BBD4DE', L: '#FFFFFF' } },
   { id: 'night',   name: 'Gece',       price: 750, sky: '#2C3E6B', skyBottom: '#48688F', grass: '#2E7D5B', grassDark: '#1F5E43' },
-  // Satın ALINAMAZ — yalnızca Seyahat Defteri'nde TÜM damgalar toplanınca (%100) ödül olarak açılır.
-  { id: 'kasif',   name: 'Kâşif',      price: null, reward: true, sky: '#F7C948', skyBottom: '#FCE9A6', grass: '#57B894', grassDark: '#2F8F6B',
-    tree: { G: '#C9A227', L: '#F2D65C' } },
 ];
 export const DEFAULT_THEME = 'classic';
 export const getTheme = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
@@ -68,4 +60,3 @@ export const GOLD_PACKS = [
 // Yer tutucu fiyatlar — SADECE mağaza bağlı değilken (Expo Go / ürün eklenmeden)
 // gösterilir. Yayında gerçek fiyat mağazadan (RevenueCat) gelir, bunlar kullanılmaz.
 export const PLACEHOLDER_PRICES = { gold_small: '₺29,99', gold_medium: '₺54,99', gold_large: '₺99,99', gold_mega: '₺199,99' };
-export const REMOVE_ADS_PRICE = '₺39,99';

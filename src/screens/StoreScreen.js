@@ -1,14 +1,13 @@
 // src/screens/StoreScreen.js
-// Tutarlı, profesyonel market: tüm satın alınabilir öğeler AYNI satır düzeninde
-// (ikon · ad/açıklama · fiyat). Öne çıkan "reklam izle" banner. Temalar seçici şerit.
+// Tutarlı, profesyonel market. Sıra: Jokerler (3 yan yana) · Altın paketleri · Temalar.
+// Reklam YOK.
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PALETTE, FONT, PixelArt, IC_MAGNIFIER, IC_WAND, IC_GIFT, jokerIconPalette } from '../pixel/PixelKit';
 import { useEconomy } from '../economy/EconomyContext';
-import { JOKER_META, JOKER_ORDER, AD_REWARD } from '../economy/config';
-import { getGoldPacks, purchaseGold, purchaseRemoveAds, getRemoveAdsPrice, restorePurchases } from '../economy/iap';
-import { showRewardedAd } from '../economy/ads';
+import { JOKER_META, JOKER_ORDER } from '../economy/config';
+import { getGoldPacks, purchaseGold, restorePurchases } from '../economy/iap';
 
 const COIN = ['.ggg.', 'gYYYg', 'gYWYg', 'gYYYg', '.ggg.'];
 const COIN_PAL = { g: '#B8901A', Y: PALETTE.gold, W: PALETTE.cream };
@@ -21,55 +20,21 @@ function CalmBackground() {
   );
 }
 
-// Ortak satır: [ikon] [ad + açıklama (+rozet)] [sağ aksiyon]
-function ShopRow({ icon, title, subtitle, badge, right, onPress, disabled }) {
-  return (
-    <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.row, disabled && styles.rowOff, pressed && !disabled && styles.pressed]}>
-      <View style={styles.rowIcon}>{icon}</View>
-      <View style={{ flex: 1 }}>
-        <View style={styles.rowTitleLine}>
-          <Text style={styles.rowTitle} numberOfLines={1}>{title}</Text>
-          {badge ? <Text style={styles.badge}>{badge}</Text> : null}
-        </View>
-        {subtitle ? <Text style={styles.rowSub} numberOfLines={1}>{subtitle}</Text> : null}
-      </View>
-      {right}
-    </Pressable>
-  );
-}
-
-// Oyun-içi altın fiyatı (jetonlu pill)
-const GoldPrice = ({ value }) => (
-  <View style={styles.goldPill}>
-    <PixelArt matrix={COIN} pixelSize={3} palette={COIN_PAL} />
-    <Text style={styles.goldPillText}>{value}</Text>
-  </View>
-);
-// Gerçek para fiyatı (dolgu gold buton)
-const MoneyPrice = ({ label, busy }) => (
-  <View style={styles.moneyBtn}>{busy ? <ActivityIndicator size="small" color={PALETTE.outline} /> : <Text style={styles.moneyBtnText}>{label}</Text>}</View>
-);
-
 export default function StoreScreen({ navigation }) {
   const {
-    coins, buyJoker, creditPurchase, addCoins,
-    adsRemoved, removeAds,
+    coins, buyJoker, creditPurchase,
     themes, ownedThemes, equippedTheme, buyTheme, equipTheme,
   } = useEconomy();
   const [packs, setPacks] = useState(null);
   const [busy, setBusy] = useState(null);
-  const [adBusy, setAdBusy] = useState(false);
-  const [removeAdsPrice, setRemoveAdsPrice] = useState('');
   const [flash, setFlash] = useState(null);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       const list = await getGoldPacks();
-      const rap = await getRemoveAdsPrice();
       if (!alive) return;
       setPacks(list);
-      setRemoveAdsPrice(rap);
     })();
     return () => { alive = false; };
   }, []);
@@ -96,28 +61,9 @@ export default function StoreScreen({ navigation }) {
     showFlash(res.ok ? 'Satın alımlar geri yüklendi.' : 'Geri yükleme başarısız.');
   };
 
-  const onWatchAd = async () => {
-    if (adBusy) return;
-    setAdBusy(true);
-    const res = await showRewardedAd();
-    setAdBusy(false);
-    if (res.ok) { addCoins(AD_REWARD); showFlash(`+${AD_REWARD} altın kazandın!`); }
-    else showFlash('Reklam yüklenemedi, tekrar dene.');
-  };
-
-  const onRemoveAds = async () => {
-    if (busy) return;
-    setBusy('removeads');
-    const res = await purchaseRemoveAds();
-    setBusy(null);
-    if (res.ok) { removeAds(); showFlash('Reklamlar kaldırıldı!'); }
-    else if (!res.cancelled) Alert.alert('Satın alma başarısız', res.error || 'Tekrar dene.');
-  };
-
   const onTheme = (t) => {
     if (t.id === equippedTheme) return;
     if (ownedThemes.includes(t.id)) { equipTheme(t.id); showFlash(`${t.name} kuşanıldı`); return; }
-    if (t.reward) { showFlash('Tüm damgaları topla → açılır'); return; } // satın alınamaz, %100 ödülü
     const res = buyTheme(t.id);
     if (res.ok) { equipTheme(t.id); showFlash(`${t.name} alındı ve kuşanıldı`); }
     else if (res.reason === 'coins') showFlash('Yetersiz altın');
@@ -142,21 +88,31 @@ export default function StoreScreen({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        {/* Öne çıkan: reklam izle → bedava altın */}
-        <Pressable onPress={onWatchAd} disabled={adBusy} style={({ pressed }) => [styles.hero, pressed && !adBusy && styles.pressed]}>
-          <View style={styles.heroIcon}><Text style={styles.heroPlay}>▶</Text></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.heroTitle}>Bedava Altın</Text>
-            <Text style={styles.heroSub}>Kısa bir reklam izle, altın kazan</Text>
-          </View>
-          <View style={styles.heroReward}>
-            {adBusy ? <ActivityIndicator color={PALETTE.outline} /> : (
-              <><PixelArt matrix={COIN} pixelSize={3} palette={COIN_PAL} /><Text style={styles.heroRewardText}>+{AD_REWARD}</Text></>
-            )}
-          </View>
-        </Pressable>
+        {/* JOKERLER — en üstte, üçü yan yana */}
+        <Text style={styles.section}>JOKERLER</Text>
+        <View style={styles.grid3}>
+          {JOKER_ORDER.map((type) => {
+            const m = JOKER_META[type];
+            const afford = coins >= m.price;
+            return (
+              <Pressable
+                key={type}
+                onPress={() => onBuyJoker(type)}
+                disabled={!afford}
+                style={({ pressed }) => [styles.jokerCard, !afford && styles.jokerOff, pressed && afford && styles.pressed]}
+              >
+                <View style={styles.jokerIcon}><PixelArt matrix={JOKER_ICON[type]} pixelSize={4} palette={IPAL} /></View>
+                <Text style={styles.jokerName} numberOfLines={1}>{m.name}</Text>
+                <View style={styles.jokerPrice}>
+                  <PixelArt matrix={COIN} pixelSize={2} palette={COIN_PAL} />
+                  <Text style={styles.jokerPriceText}>{m.price}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
 
-        {/* ALTIN PAKETLERİ — öne çıkan grid (ana gelir) */}
+        {/* ALTIN PAKETLERİ */}
         <Text style={styles.section}>ALTIN PAKETLERİ</Text>
         {packs === null ? (
           <ActivityIndicator color={PALETTE.gold} style={{ marginVertical: 16 }} />
@@ -179,7 +135,7 @@ export default function StoreScreen({ navigation }) {
           </View>
         )}
 
-        {/* HARİTA TEMASI — görünür grid */}
+        {/* HARİTA TEMASI */}
         <Text style={styles.section}>HARİTA TEMASI</Text>
         <View style={styles.grid}>
           {themes.map((t) => {
@@ -197,8 +153,6 @@ export default function StoreScreen({ navigation }) {
                     <Text style={styles.themeEquipped}>KUŞANILDI</Text>
                   ) : owned ? (
                     <Text style={styles.themeEquip}>KUŞAN</Text>
-                  ) : t.reward ? (
-                    <Text style={styles.themeReward}>👑 %100</Text>
                   ) : (
                     <View style={styles.goldPill}>
                       <PixelArt matrix={COIN} pixelSize={2} palette={COIN_PAL} />
@@ -211,40 +165,8 @@ export default function StoreScreen({ navigation }) {
           })}
         </View>
 
-        {/* JOKERLER — kompakt (altınla) */}
-        <Text style={styles.section}>JOKERLER</Text>
-        {JOKER_ORDER.map((type) => {
-          const m = JOKER_META[type];
-          const afford = coins >= m.price;
-          return (
-            <ShopRow
-              key={type}
-              icon={<PixelArt matrix={JOKER_ICON[type]} pixelSize={4} palette={IPAL} />}
-              title={m.name}
-              subtitle={m.desc}
-              right={<GoldPrice value={m.price} />}
-              disabled={!afford}
-              onPress={() => onBuyJoker(type)}
-            />
-          );
-        })}
-
-        {/* Reklamları kaldır */}
-        {!adsRemoved && (
-          <>
-            <Text style={styles.section}>EKSTRALAR</Text>
-            <ShopRow
-              icon={<Text style={styles.noAds}>⊘</Text>}
-              title="Reklamları Kaldır"
-              subtitle="Geçiş reklamları bir daha çıkmaz"
-              right={<MoneyPrice label={removeAdsPrice || '—'} busy={busy === 'removeads'} />}
-              onPress={onRemoveAds}
-            />
-          </>
-        )}
-
         <Pressable onPress={onRestore} style={styles.restoreBtn} hitSlop={6}>
-          <Text style={styles.restoreText}>Satın alımları geri yükle</Text>
+          
         </Pressable>
       </ScrollView>
 
@@ -273,40 +195,24 @@ const styles = StyleSheet.create({
   section: { color: PALETTE.outline, fontFamily: FONT.arcade, fontSize: 12, letterSpacing: 1, marginTop: 22, marginBottom: 10 },
   pressed: { transform: [{ translateY: 1 }], opacity: 0.92 },
 
-  // Öne çıkan (hero) reklam
-  hero: {
-    flexDirection: 'row', alignItems: 'center', padding: 12,
-    backgroundColor: CARD, borderWidth: 3, borderColor: '#5BC98B',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 0,
-  },
-  heroIcon: { width: 46, height: 46, backgroundColor: '#1F7A4D', borderWidth: 2, borderColor: '#5BC98B', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  heroPlay: { color: PALETTE.cream, fontSize: 22, marginLeft: 2 },
-  heroTitle: { color: '#7BE3A6', fontFamily: FONT.bold, fontSize: 20 },
-  heroSub: { color: '#AEB6C8', fontFamily: FONT.medium, fontSize: 14, marginTop: 1 },
-  heroReward: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#5BC98B', borderWidth: 2, borderColor: PALETTE.cream, paddingHorizontal: 10, paddingVertical: 7, marginLeft: 8, minWidth: 58, justifyContent: 'center' },
-  heroRewardText: { color: PALETTE.outline, fontFamily: FONT.bold, fontSize: 17, marginLeft: 4 },
+  // Grid'ler
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  grid3: { flexDirection: 'row', justifyContent: 'space-between' },
 
-  // Ortak satır
-  row: {
-    flexDirection: 'row', alignItems: 'center', padding: 12, marginBottom: 10,
-    backgroundColor: CARD, borderWidth: 2, borderColor: BORDER,
+  // Joker kartı (3 yan yana)
+  jokerCard: {
+    width: '31.5%', backgroundColor: CARD, borderWidth: 2, borderColor: BORDER,
+    paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center',
   },
-  rowOff: { opacity: 0.5 },
-  rowIcon: { width: 46, height: 46, backgroundColor: PALETTE.outline, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  rowTitleLine: { flexDirection: 'row', alignItems: 'center' },
-  rowTitle: { color: PALETTE.gold, fontFamily: FONT.bold, fontSize: 19 },
-  rowSub: { color: '#AEB6C8', fontFamily: FONT.medium, fontSize: 14, marginTop: 1 },
-  badge: { color: PALETTE.outline, backgroundColor: PALETTE.gold, fontFamily: FONT.bold, fontSize: 11, letterSpacing: 0.5, paddingHorizontal: 6, paddingVertical: 1, marginLeft: 8 },
-  noAds: { color: '#FF6F91', fontSize: 26, fontWeight: '900' },
+  jokerOff: { opacity: 0.5 },
+  jokerIcon: { width: 44, height: 44, backgroundColor: PALETTE.outline, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  jokerName: { color: PALETTE.gold, fontFamily: FONT.bold, fontSize: 15, marginBottom: 8, textAlign: 'center' },
+  jokerPrice: { flexDirection: 'row', alignItems: 'center', backgroundColor: PALETTE.outline, borderWidth: 2, borderColor: PALETTE.gold, paddingHorizontal: 8, paddingVertical: 5 },
+  jokerPriceText: { color: PALETTE.gold, fontFamily: FONT.bold, fontSize: 15, marginLeft: 5 },
 
-  // Sağ aksiyonlar
+  // Sağ aksiyon (tema fiyatı)
   goldPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: PALETTE.outline, borderWidth: 2, borderColor: PALETTE.gold, paddingHorizontal: 9, paddingVertical: 6, marginLeft: 8 },
   goldPillText: { color: PALETTE.gold, fontFamily: FONT.bold, fontSize: 16, marginLeft: 5 },
-  moneyBtn: { backgroundColor: PALETTE.gold, borderWidth: 2, borderColor: PALETTE.cream, paddingHorizontal: 12, paddingVertical: 9, marginLeft: 8, minWidth: 92, alignItems: 'center' },
-  moneyBtnText: { color: PALETTE.outline, fontFamily: FONT.bold, fontSize: 16 },
-
-  // Grid (altın paketleri + temalar)
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
 
   // Öne çıkan altın paketi kartı
   packCard: {
@@ -333,7 +239,6 @@ const styles = StyleSheet.create({
   themeName: { color: PALETTE.cream, fontFamily: FONT.bold, fontSize: 16, flex: 1 },
   themeEquipped: { color: PALETTE.gold, fontFamily: FONT.bold, fontSize: 12, letterSpacing: 1 },
   themeEquip: { color: PALETTE.accent, fontFamily: FONT.bold, fontSize: 13, letterSpacing: 1 },
-  themeReward: { color: '#D4A017', fontFamily: FONT.bold, fontSize: 12, letterSpacing: 1 },
 
   restoreBtn: { alignSelf: 'center', marginTop: 20, paddingVertical: 6 },
   restoreText: { color: PALETTE.outline, opacity: 0.75, fontFamily: FONT.semi, fontSize: 14, textDecorationLine: 'underline' },
