@@ -235,7 +235,7 @@ const BUSHES = [
 ];
 
 export default function IntroScreen({ navigation }) {
-  const { user, ready } = useAuth();
+  const { ready } = useAuth();
   const pulseOpacity = useRef(new Animated.Value(0.4)).current;
   const floatY = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -243,11 +243,9 @@ export default function IntroScreen({ navigation }) {
 
   const [percent, setPercent] = useState(0);
   const navigatedRef = useRef(false);
-  // Oturum durumu (Firebase) hazır olana kadar bekleyip ona göre yönlendir:
-  // girişliyse CityMap, değilse Login.
-  const userRef = useRef(user);
+  // Misafir modu: herkes (girişli ya da değil) doğrudan haritaya girer; oyunu görür.
+  // Oynamaya/satın almaya gelince ilgili ekran giriş/kayıt ister.
   const readyRef = useRef(ready);
-  userRef.current = user;
   readyRef.current = ready;
   const wantRef = useRef(false);
 
@@ -255,7 +253,7 @@ export default function IntroScreen({ navigation }) {
     if (navigatedRef.current) return;
     if (!wantRef.current || !readyRef.current) return;
     navigatedRef.current = true;
-    navigation.replace(userRef.current ? 'CityMap' : 'Login');
+    navigation.replace('CityMap');
   };
   const goToCityMap = () => {
     wantRef.current = true;

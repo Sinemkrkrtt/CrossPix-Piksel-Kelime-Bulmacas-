@@ -10,6 +10,8 @@ import { getPuzzle } from '../data/puzzles';
 import { getEndlessPuzzle } from '../data/endless';
 import { getSouvenir } from '../data/souvenirs';
 import { useEconomy } from '../economy/EconomyContext';
+import { useAuth } from '../auth/AuthContext';
+import { usePixelAlert } from '../pixel/PixelAlert';
 import SouvenirCelebration from './components/SouvenirCelebration';
 
 const { width: W, height: SCREEN_H } = Dimensions.get('window');
@@ -93,7 +95,24 @@ export default function PixelPuzzleScreen({ navigation, route }) {
 
 
   const { coins, jokers, useJoker, rewardPuzzle, solveEndless, rewarded, puzzleProgress, savePuzzleProgress } = useEconomy();
+  const { user } = useAuth();
+  const showAlert = usePixelAlert();
   const progressKey = `${cityId}:${puzzleId}`;
+
+  // Misafir modu: oyunu görebilir ama OYNAYAMAZ. Kelime yazma/çözme/joker'e gelince
+  // giriş/kayıt iste (App Store: indirince önce oyunu görsün, oynamak için üye olsun).
+  const requireAuth = () => {
+    if (user) return true;
+    showAlert(
+      'Oynamak için giriş yap',
+      'Kelimeleri çözmek için hesabına giriş yap ya da ücretsiz kayıt ol.',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Giriş / Kayıt', onPress: () => navigation.navigate('Login') },
+      ]
+    );
+    return false;
+  };
   // Izgaranın GERÇEK boyutu (onLayout ile ölçülür) — zoom-ScrollView tam ona göre
   // boyutlanır ki çerçeve ızgarayı sımsıkı sarsın (fazladan boşluk olmasın).
   const [boardBox, setBoardBox] = useState(null);
@@ -247,6 +266,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
   }, [activeClueId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleKey = (letter) => {
+    if (!requireAuth()) return; // misafir → giriş/kayıt iste
     if (!activeClueId) return;
     const i = slots.findIndex((s) => s === '');
     if (i === -1) return; // boş kutu yok
@@ -281,6 +301,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
 
   // Joker 1 — Tek Harf: aktif kelimede ilk boş kutuyu doğru harfle açar.
   const jokerCell = () => {
+    if (!requireAuth()) return;
     if (!cellUsable) return;
     setJokerMenu(false);
     if (!useJoker('cell')) return;
@@ -294,6 +315,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
 
   // Joker 2 — Tüm Kelime: aktif (seçili) kelimeyi tamamen açar.
   const jokerWord = () => {
+    if (!requireAuth()) return;
     if (!wordUsable) return;
     setJokerMenu(false);
     if (!useJoker('word')) return;
@@ -302,6 +324,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
 
   // Joker 3 — Bedava Kelime: rastgele çözülmemiş bir kelimeyi çözer.
   const jokerFree = () => {
+    if (!requireAuth()) return;
     if (!freeUsable) return;
     setJokerMenu(false);
     const unsolved = Object.keys(CLUES).map(Number).filter((id) => !solvedClues.includes(id));
@@ -524,7 +547,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
                   <View key={ri} style={styles.keyRow}>
                     {krow.map((k) => {
                       if (k === '⌫') return <Key key={k} label="SİL" flex={1.5} onPress={handleBackspace} />;
-                      if (k === '⏎') return <Key key={k} label="ÇÖZ" flex={1.5} gold onPress={() => submit(slots.join(''))} />;
+                      if (k === '⏎') return <Key key={k} label="ÇÖZ" flex={1.5} gold onPress={() => { if (requireAuth()) submit(slots.join('')); }} />;
                       return <Key key={k} label={k} onPress={() => handleKey(k)} />;
                     })}
                   </View>

@@ -23,11 +23,11 @@ export default function RegisterScreen({ navigation }) {
     const res = await register(email, password, name);
     setBusy(false);
     if (!res.ok) setErr(res.error);
-    else navigation.replace('CityMap'); // kayıt sonrası otomatik giriş → haritaya
+    else navigation.reset({ index: 0, routes: [{ name: 'CityMap' }] }); // kayıt → temiz haritaya
   };
 
   return (
-    <AuthShell title="KAYIT OL" navigation={navigation} showBack={false}>
+    <AuthShell title="KAYIT OL" navigation={navigation} showBack={navigation.canGoBack()}>
       <AuthError text={err} />
       <AuthField label="E-POSTA" value={email} onChangeText={setEmail} keyboardType="email-address" placeholder="ornek@mail.com" textContentType="emailAddress" />
       <AuthField label="ŞİFRE" value={password} onChangeText={setPassword} secureTextEntry placeholder="En az 6 karakter" textContentType="newPassword" />

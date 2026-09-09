@@ -21,7 +21,7 @@ export default function LoginScreen({ navigation }) {
     const res = await login(email, password);
     setBusy(false);
     if (!res.ok) setErr(res.error);
-    else navigation.replace('CityMap');
+    else navigation.reset({ index: 0, routes: [{ name: 'CityMap' }] });
   };
 
   const onForgot = async () => {
@@ -34,7 +34,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <AuthShell title="GİRİŞ YAP" navigation={navigation} showBack={false}>
+    <AuthShell title="GİRİŞ YAP" navigation={navigation} showBack={navigation.canGoBack()}>
       <AuthError text={err} />
       {note ? (
         <View style={styles.noteBox}><Text style={styles.noteText}>{note}</Text></View>

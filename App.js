@@ -23,6 +23,7 @@ import LoginScreen from './src/screens/LoginScreen'; // Giriş
 import RegisterScreen from './src/screens/RegisterScreen'; // Kayıt
 import { EconomyProvider } from './src/economy/EconomyContext'; // Altın + joker cüzdanı
 import { AuthProvider } from './src/auth/AuthContext'; // Firebase oturumu
+import { PixelAlertProvider } from './src/pixel/PixelAlert'; // Şık pixel uyarı pencereleri
 
 const Stack = createStackNavigator();
 
@@ -41,6 +42,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
     <AuthProvider>
       <EconomyProvider>
+        <PixelAlertProvider>
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Intro" component={IntroScreen} />
@@ -60,6 +62,7 @@ export default function App() {
             <Stack.Screen name="Register" component={RegisterScreen} />
           </Stack.Navigator>
         </NavigationContainer>
+        </PixelAlertProvider>
       </EconomyProvider>
     </AuthProvider>
     </GestureHandlerRootView>

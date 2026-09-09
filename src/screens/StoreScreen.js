@@ -2,10 +2,12 @@
 // Tutarlı, profesyonel market. Sıra: Jokerler (3 yan yana) · Altın paketleri · Temalar.
 // Reklam YOK.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PALETTE, FONT, PixelArt, IC_MAGNIFIER, IC_WAND, IC_GIFT, jokerIconPalette } from '../pixel/PixelKit';
 import { useEconomy } from '../economy/EconomyContext';
+import { useAuth } from '../auth/AuthContext';
+import { usePixelAlert } from '../pixel/PixelAlert';
 import { JOKER_META, JOKER_ORDER } from '../economy/config';
 import { getGoldPacks, requestGoldPurchase } from '../economy/iap';
 
@@ -25,6 +27,22 @@ export default function StoreScreen({ navigation }) {
     coins, buyJoker, creditPurchase, purchaseEvent,
     themes, ownedThemes, equippedTheme, buyTheme, equipTheme,
   } = useEconomy();
+  const { user } = useAuth();
+  const showAlert = usePixelAlert();
+
+  // Misafir modu: mağazayı görebilir ama satın alma/kuşanma giriş ister.
+  const requireAuth = () => {
+    if (user) return true;
+    showAlert(
+      'Giriş yap',
+      'Satın almak için hesabına giriş yap ya da ücretsiz kayıt ol.',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Giriş / Kayıt', onPress: () => navigation.navigate('Login') },
+      ]
+    );
+    return false;
+  };
   const [packs, setPacks] = useState(null);
   const [busy, setBusy] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -59,11 +77,12 @@ export default function StoreScreen({ navigation }) {
     setBusy(null);
     if (purchaseEvent.ok) showFlash(`+${purchaseEvent.coins} altın eklendi!`);
     else if (purchaseEvent.pending) showFlash('Onay bekleniyor…');
-    else if (!purchaseEvent.cancelled) Alert.alert('Satın alma başarısız', purchaseEvent.error || 'Tekrar dene.');
+    else if (!purchaseEvent.cancelled) showAlert('Satın alma başarısız', purchaseEvent.error || 'Tekrar dene.');
     // iptal → sessiz geç
   }, [purchaseEvent]);
 
   const onBuyJoker = (type) => {
+    if (!requireAuth()) return;
     if (!lockOnce()) return;
     const res = buyJoker(type);
     if (res.ok) showFlash(`${JOKER_META[type].name} alındı!`);
@@ -72,19 +91,21 @@ export default function StoreScreen({ navigation }) {
 
   const onBuyGold = async (pack) => {
     if (busy) return;
+    if (!requireAuth()) return; // misafir → altın satın alamaz (hesap gerekli)
     // Fiyatı Apple'dan yüklenmemiş paket (mağazada henüz hazır değil) → satın almayı deneme.
     if (pack.available === false) { showFlash('Bu paket şu an mağazada hazır değil'); return; }
     setBusy(pack.id);
     const res = await requestGoldPurchase(pack.productId);
     if (res.mock) { setBusy(null); creditPurchase(pack.coins); showFlash(`+${pack.coins} altın eklendi! (test)`); return; }
     if (res.cancelled) { setBusy(null); return; }
-    if (res.ok === false) { setBusy(null); Alert.alert('Satın alma başarısız', res.error || 'Tekrar dene.'); return; }
+    if (res.ok === false) { setBusy(null); showAlert('Satın alma başarısız', res.error || 'Tekrar dene.'); return; }
     // res.ok === true → Apple satın alma akışı başladı; sonuç (onay/iptal/hata)
     // purchaseEvent dinleyicisine düşer; başarı/hata flash'ı ve busy temizliği orada.
   };
 
   const onTheme = (t) => {
     if (t.id === equippedTheme) return;
+    if (!requireAuth()) return; // misafir → tema alımı/kuşanması giriş ister
     if (!lockOnce()) return;
     if (ownedThemes.includes(t.id)) { equipTheme(t.id); showFlash(`${t.name} kuşanıldı`); return; }
     // buyTheme artık satın alınca aynı anda kuşanıyor (ayrı equipTheme çağrısına gerek yok).

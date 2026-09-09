@@ -14,7 +14,6 @@ import {
   ScrollView,
   Dimensions,
   StatusBar,
-  Alert,
 } from 'react-native';
 import {
   PALETTE,
@@ -39,6 +38,7 @@ import { CITIES, PACKS, getPack, ENDLESS_PACK } from '../data/cities';
 import { tierForLevel } from '../data/endless';
 import { SOUVENIR_MILESTONES } from '../data/souvenirs';
 import { useAuth } from '../auth/AuthContext';
+import { usePixelAlert } from '../pixel/PixelAlert';
 import { useEconomy } from '../economy/EconomyContext';
 
 // Sağ üst düğme ikonu: çıkış (kapı + dışarı ok)
@@ -561,7 +561,8 @@ function LevelNode({ node, state, pulse, onPress }) {
 let hasEnteredCityMap = false;
 
 export default function CityMapScreen({ navigation }) {
-  const { logout, removeAccount } = useAuth();
+  const { user, logout, removeAccount } = useAuth();
+  const showAlert = usePixelAlert();
   const { theme, ownedPacks, buyPack, endlessLevel, rewarded, claimedMilestones } = useEconomy();
 
   // Şehir tamamlandı mı? (tüm bölümleri çözülmüş mü)
@@ -646,10 +647,26 @@ export default function CityMapScreen({ navigation }) {
     try { await AsyncStorage.setItem('pixi_onboarded_v2', '1'); } catch (e) { /* sessiz */ }
   }, []);
 
-  const toLogin = () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  // Çıkış/hesap silme sonrası: giriş zorlanmaz, misafir olarak haritaya dönülür
+  // (istediğinde hesap menüsünden yeniden giriş/kayıt yapar).
+  const toLogin = () => navigation.reset({ index: 0, routes: [{ name: 'CityMap' }] });
+
+  // Misafir modu: oyunu görebilir ama satın alma/oynama giriş ister.
+  const requireAuth = () => {
+    if (user) return true;
+    showAlert(
+      'Giriş yap',
+      'Devam etmek için hesabına giriş yap ya da ücretsiz kayıt ol.',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Giriş / Kayıt', onPress: () => navigation.navigate('Login') },
+      ]
+    );
+    return false;
+  };
 
   const confirmDelete = () => {
-    Alert.alert('Hesabı sil', 'Hesabın kalıcı olarak silinecek. Bu işlem geri alınamaz. Emin misin?', [
+    showAlert('Hesabı sil', 'Hesabın kalıcı olarak silinecek. Bu işlem geri alınamaz. Emin misin?', [
       { text: 'Vazgeç', style: 'cancel' },
       {
         text: 'Sil',
@@ -658,11 +675,11 @@ export default function CityMapScreen({ navigation }) {
           const res = await removeAccount();
           if (res.ok) toLogin();
           else if (res.code === 'auth/requires-recent-login') {
-            Alert.alert('Yeniden giriş gerekli', 'Güvenlik için çıkış yapıp tekrar giriş yap, sonra hesabı sil.', [
+            showAlert('Yeniden giriş gerekli', 'Güvenlik için çıkış yapıp tekrar giriş yap, sonra hesabı sil.', [
               { text: 'Tamam', onPress: async () => { await logout(); toLogin(); } },
             ]);
           } else {
-            Alert.alert('Silinemedi', res.error);
+            showAlert('Silinemedi', res.error);
           }
         },
       },
@@ -670,7 +687,15 @@ export default function CityMapScreen({ navigation }) {
   };
 
   const openAccountMenu = () => {
-    Alert.alert('Hesap', undefined, [
+    // Misafir → giriş/kayıt sun; girişli → çıkış/hesap sil.
+    if (!user) {
+      showAlert('Hesap', 'Şu an misafir olarak geziyorsun. Oynamak için giriş yap ya da kayıt ol.', [
+        { text: 'Giriş / Kayıt', onPress: () => navigation.navigate('Login') },
+        { text: 'İptal', style: 'cancel' },
+      ]);
+      return;
+    }
+    showAlert('Hesap', undefined, [
       { text: 'Çıkış Yap', onPress: async () => { await logout(); toLogin(); } },
       { text: 'Hesabı Sil', style: 'destructive', onPress: confirmDelete },
       { text: 'İptal', style: 'cancel' },
@@ -794,9 +819,11 @@ export default function CityMapScreen({ navigation }) {
             // Kapı açık + paket alınmış ama bu şehrin sırası gelmemiş.
             setToast('Önce paketin önceki şehrini bitir');
             setTimeout(() => setToast(null), 2200);
+          } else if (!requireAuth()) {
+            // Misafir → giriş/kayıt (yukarıda uyarı gösterildi).
           } else {
             // Kapıya ulaşıldı → satın alma sorulur.
-            Alert.alert(
+            showAlert(
               pack.name,
               `${pack.cities.length} yeni şehir açılır.\n${pack.price} altına satın al?`,
               [
@@ -857,6 +884,7 @@ export default function CityMapScreen({ navigation }) {
   // Kapı kilitliyse: arı kapıya uçar, sonra Sonsuz Diyar paketini satın alma sorulur.
   const buyEndless = () => {
     if (flying) return;
+    if (!requireAuth()) return; // misafir → giriş/kayıt
     setFlying(true);
     setToast(null);
     const { cx, cy } = ENDLESS_NODE;
@@ -884,7 +912,7 @@ export default function CityMapScreen({ navigation }) {
           setTimeout(() => setToast(null), 2400);
           return;
         }
-        Alert.alert(
+        showAlert(
           ENDLESS_PACK.name,
           `Kapıdan sonra harita boyunca uzanan sınırsız, gitgide zorlaşan seviyeler açılır.\n${ENDLESS_PACK.price} altına satın al?`,
           [
