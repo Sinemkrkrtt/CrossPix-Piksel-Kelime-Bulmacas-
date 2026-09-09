@@ -10,7 +10,7 @@
 export const JOKER_META = {
   cell: { key: 'cell', name: 'Tek Harf', desc: 'Seçili kutuyu açar', price: 100 },
   free: { key: 'free', name: 'Bedava Kelime', desc: 'Rastgele kelimeyi çözer', price: 150 },
-  word: { key: 'word', name: 'Kelime', desc: 'Seçili kelimeyi çözer', price: 250 },
+  word: { key: 'word', name: 'Kelime', desc: 'Seçili kelimeyi çözer', price: 200 },
 };
 export const JOKER_ORDER = ['cell', 'free', 'word'];
 
@@ -38,12 +38,12 @@ export const ENDLESS_LEVEL_CAP = 40;    // ödül ölçeklemesinin üst sınır�
 export const THEMES = [
   { id: 'classic', name: 'Klasik',     price: 0,   sky: '#8FD9F2', skyBottom: '#CFF3D6', grass: '#5FC17E', grassDark: '#3E9E5E' },
   { id: 'spring',  name: 'Bahar',      price: 150, sky: '#F6C9E0', skyBottom: '#FCE6F2', grass: '#86DB90', grassDark: '#5BB268' },
-  { id: 'sunset',  name: 'Gün Batımı', price: 300, sky: '#FF9466', skyBottom: '#FFC98C', grass: '#A56B4E', grassDark: '#7A4A38' },
-  { id: 'autumn',  name: 'Sonbahar',   price: 450, sky: '#F0B570', skyBottom: '#F7D9A8', grass: '#C67A3C', grassDark: '#94571F',
+  { id: 'sunset',  name: 'Gün Batımı', price: 200, sky: '#FF9466', skyBottom: '#FFC98C', grass: '#A56B4E', grassDark: '#7A4A38' },
+  { id: 'autumn',  name: 'Sonbahar',   price: 300, sky: '#F0B570', skyBottom: '#F7D9A8', grass: '#C67A3C', grassDark: '#94571F',
     tree: { G: '#C0662A', L: '#E4953A' }, fallen: ['#C4622A', '#E0973E', '#A8442A', '#D9832F'] },
-  { id: 'winter',  name: 'Kış',        price: 600, sky: '#CFE8F4', skyBottom: '#EDF7FC', grass: '#DCEBEF', grassDark: '#AFC8D2',
+  { id: 'winter',  name: 'Kış',        price: 450, sky: '#CFE8F4', skyBottom: '#EDF7FC', grass: '#DCEBEF', grassDark: '#AFC8D2',
     tree: { G: '#BBD4DE', L: '#FFFFFF' } },
-  { id: 'night',   name: 'Gece',       price: 750, sky: '#2C3E6B', skyBottom: '#48688F', grass: '#2E7D5B', grassDark: '#1F5E43' },
+  { id: 'night',   name: 'Gece',       price: 600, sky: '#2C3E6B', skyBottom: '#48688F', grass: '#2E7D5B', grassDark: '#1F5E43' },
 ];
 export const DEFAULT_THEME = 'classic';
 export const getTheme = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
