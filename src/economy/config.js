@@ -51,11 +51,12 @@ export const getTheme = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
 // --- Gerçek PARA ile satılan altın paketleri ---
 // coins/bonus = verilecek altın (oyun tasarımı). productId = mağaza ürün kimliği.
 // FİYAT burada yok; mağazadan gelir (bkz. iap.js -> priceString).
+// productId = App Store Connect'teki BİREBİR ürün kimliği (bundle id'den bağımsız).
 export const GOLD_PACKS = [
-  { id: 'gold_small',  productId: 'com.sinemkarakurt.crosspix.gold500',  coins: 500,  bonus: 0, tag: null },
-  { id: 'gold_medium', productId: 'com.sinemkarakurt.crosspix.gold1000', coins: 1000, bonus: 0, tag: 'POPÜLER' },
-  { id: 'gold_large',  productId: 'com.sinemkarakurt.crosspix.gold2000', coins: 2000, bonus: 0, tag: 'EN İYİ' },
-  { id: 'gold_mega',   productId: 'com.sinemkarakurt.crosspix.gold5000', coins: 5000, bonus: 0, tag: 'MEGA' },
+  { id: 'gold_small',  productId: 'com.devast.developerteam.crosspix.gold1000',  coins: 1000,  bonus: 0, tag: null },
+  { id: 'gold_medium', productId: 'com.devast.developerteam.crosspix.gold2000',  coins: 2000,  bonus: 0, tag: 'POPÜLER' },
+  { id: 'gold_large',  productId: 'com.devast.developerteam.crosspix.gold5000',  coins: 5000,  bonus: 0, tag: 'EN İYİ' },
+  { id: 'gold_mega',   productId: 'com.devast.developerteam.crosspix.gold10000', coins: 10000, bonus: 0, tag: 'MEGA' },
 ];
 
 // Yer tutucu fiyatlar — SADECE mağaza bağlı değilken (Expo Go / ürün eklenmeden)
