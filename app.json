@@ -8,14 +8,14 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sinemkarakurt.crosspix",
+      "bundleIdentifier": "com.devast.developerteam.crosspix",
       "buildNumber": "8",
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.sinemkarakurt.crosspix",
+      "package": "com.devast.developerteam.crosspix",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
