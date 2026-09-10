@@ -147,6 +147,36 @@ export default function PixelPuzzleScreen({ navigation, route }) {
   const shapePulse = useRef(new Animated.Value(1)).current;
   const sparks = useRef(SPARKS.map(() => new Animated.Value(0))).current;
 
+  // Her ipucunun hücreleri (her kutunun hangi ipuçlarına ait olduğu) — kapsama kontrolü için.
+  const clueCells = useMemo(() => {
+    const m = {};
+    GRID.forEach((row) => row.forEach((cell) => {
+      if (cell?.value && Array.isArray(cell.clueIds)) {
+        cell.clueIds.forEach((id) => { (m[id] = m[id] || []).push(cell.clueIds); });
+      }
+    }));
+    return m;
+  }, [puzzle]);
+
+  // Çözülmüş listeyi genişlet: bütün harfleri kesişen BAŞKA çözülmüş kelimelerden
+  // açığa çıkan kelimeleri de otomatik "çözüldü" say (zincirleme). Böylece kullanıcı
+  // kendiliğinden dolan bir kelimeyi tekrar aramak zorunda kalmaz.
+  const expandSolved = (list) => {
+    const solved = new Set(list);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const idStr of Object.keys(clueCells)) {
+        const id = Number(idStr);
+        if (solved.has(id)) continue;
+        const cells = clueCells[id];
+        const covered = cells.length > 0 && cells.every((cids) => cids.some((cid) => cid !== id && solved.has(cid)));
+        if (covered) { solved.add(id); changed = true; }
+      }
+    }
+    return [...solved];
+  };
+
   // Mount: daha önce çözülmüş kelimelerin hücrelerini (animasyonsuz) hemen göster.
   useLayoutEffect(() => {
     if (!solvedClues.length) return;
@@ -244,7 +274,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
   const submit = (finalGuess) => {
     if (!activeClueId) return;
     if (finalGuess === activeAnswer) {
-      const next = [...solvedClues, activeClueId];
+      const next = expandSolved([...solvedClues, activeClueId]);
       setSolvedClues(next);
       setActiveClueId(null);
       revealSolvedCells(next);
@@ -288,7 +318,7 @@ export default function PixelPuzzleScreen({ navigation, route }) {
 
   // Bir kelimeyi tamamen çözer (joker yardımcısı).
   const solveClue = (id) => {
-    const next = [...solvedClues, id];
+    const next = expandSolved([...solvedClues, id]);
     setSolvedClues(next);
     if (activeClueId === id) setActiveClueId(null);
     revealSolvedCells(next);
